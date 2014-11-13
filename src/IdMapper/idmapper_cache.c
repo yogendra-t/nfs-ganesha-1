@@ -245,11 +245,12 @@ void idmapper_init()
  * @param ht       [INOUT] the hash table to be used
  * @param key      [IN]  the ip address requested
  * @param val      [OUT] the value
+ * @param overwrite [IN] Overwrite exising value if present
  *
  * @return ID_MAPPER_SUCCESS, ID_MAPPER_INSERT_MALLOC_ERROR, ID_MAPPER_INVALID_ARGUMENT
  *
  */
-int idmap_add(hash_table_t * ht, char *key, uint32_t val)
+int idmap_add(hash_table_t * ht, char *key, uint32_t val, int overwrite)
 {
   hash_buffer_t buffkey;
   hash_buffer_t buffdata;
@@ -280,7 +281,7 @@ int idmap_add(hash_table_t * ht, char *key, uint32_t val)
   return ID_MAPPER_SUCCESS;
 }                               /* idmap_add */
 
-int namemap_add(hash_table_t * ht, uint32_t key, char *val)
+int namemap_add(hash_table_t * ht, uint32_t key, char *val, int overwrite)
 {
   hash_buffer_t buffkey;
   hash_buffer_t buffdata;
@@ -401,14 +402,14 @@ int namemap_clear()
 }
 
 
-int uidmap_add(char *key, uid_t val, int propagate)
+int uidmap_add(char *key, uid_t val, int propagate, int overwrite)
 {
   int rc1 = ID_MAPPER_SUCCESS;
   int rc2 = ID_MAPPER_SUCCESS;
 
-  rc1 = idmap_add(ht_pwnam, key, val);
+  rc1 = idmap_add(ht_pwnam, key, val, overwrite);
   if(propagate)
-    rc2 = namemap_add(ht_pwuid, val, key);
+    rc2 = namemap_add(ht_pwuid, val, key, overwrite);
 
   if(rc1 != ID_MAPPER_SUCCESS)
     return rc1;
@@ -418,14 +419,14 @@ int uidmap_add(char *key, uid_t val, int propagate)
   return ID_MAPPER_SUCCESS;
 }                               /* uidmap_add */
 
-int unamemap_add(uid_t key, char *val, int propagate)
+int unamemap_add(uid_t key, char *val, int propagate, int overwrite)
 {
   int rc1 = ID_MAPPER_SUCCESS;
   int rc2 = ID_MAPPER_SUCCESS;
 
-  rc1 = namemap_add(ht_pwuid, key, val);
+  rc1 = namemap_add(ht_pwuid, key, val, overwrite);
   if(propagate)
-    rc2 = idmap_add(ht_pwnam, val, key);
+    rc2 = idmap_add(ht_pwnam, val, key, overwrite);
 
   if(rc1 != ID_MAPPER_SUCCESS)
     return rc1;
@@ -435,14 +436,14 @@ int unamemap_add(uid_t key, char *val, int propagate)
   return ID_MAPPER_SUCCESS;
 }                               /* unamemap_add */
 
-int gidmap_add(char *key, gid_t val, int propagate)
+int gidmap_add(char *key, gid_t val, int propagate, int overwrite)
 {
   int rc1 = ID_MAPPER_SUCCESS;
   int rc2 = ID_MAPPER_SUCCESS;
 
-  rc1 = idmap_add(ht_grnam, key, val);
+  rc1 = idmap_add(ht_grnam, key, val, overwrite);
   if(propagate)
-    rc2 = namemap_add(ht_grgid, val, key);
+    rc2 = namemap_add(ht_grgid, val, key, overwrite);
 
   if(rc1 != ID_MAPPER_SUCCESS)
     return rc1;
@@ -452,13 +453,13 @@ int gidmap_add(char *key, gid_t val, int propagate)
   return ID_MAPPER_SUCCESS;
 }                               /* gidmap_add */
 
-int gnamemap_add(gid_t key, char *val)
+int gnamemap_add(gid_t key, char *val, int overwrite)
 {
   int rc1 = 0;
   int rc2 = 0;
 
-  rc1 = namemap_add(ht_grgid, key, val);
-  rc2 = idmap_add(ht_grnam, val, key);
+  rc1 = namemap_add(ht_grgid, key, val, overwrite);
+  rc2 = idmap_add(ht_grnam, val, key, overwrite);
 
   if(rc1 != ID_MAPPER_SUCCESS)
     return rc1;
@@ -788,10 +789,10 @@ int idmap_populate(char *path, idmap_type_t maptype)
       if(errno != 0 || value > UINT_MAX)
           return ID_MAPPER_INVALID_ARGUMENT;
 
-      if((rc = idmap_add(ht, key_name, (uint32_t)value)) != ID_MAPPER_SUCCESS)
+      if((rc = idmap_add(ht, key_name, (uint32_t)value, 0)) != ID_MAPPER_SUCCESS)
         return rc;
 
-      if((rc = namemap_add(ht_reverse, (uint32_t)value, key_name)) != ID_MAPPER_SUCCESS)
+      if((rc = namemap_add(ht_reverse, (uint32_t)value, key_name, 0)) != ID_MAPPER_SUCCESS)
         return rc;
 
     }

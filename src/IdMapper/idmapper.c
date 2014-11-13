@@ -129,6 +129,7 @@ int nfsidmap_set_conf()
  */
 int uid2name(char *name, uid_t * puid, size_t namesize)
 {
+  int status;
 #ifdef _USE_NFSIDMAP
   char fqname[NFS4_MAX_DOMAIN_LEN];
 
@@ -141,7 +142,8 @@ int uid2name(char *name, uid_t * puid, size_t namesize)
       return 0;
     }
 
-  if(unamemap_get(*puid, name, namesize) == ID_MAPPER_SUCCESS)
+  status = unamemap_get(*puid, name, namesize);
+  if( status == ID_MAPPER_SUCCESS)
     {
       LogFullDebug(COMPONENT_IDMAPPER,
                    "uid2name: unamemap_get uid %u returned %s",
@@ -173,7 +175,7 @@ int uid2name(char *name, uid_t * puid, size_t namesize)
                    "uid2name: nfs4_uid_to_name uid %u returned %s",
                    *puid, name);
 
-      if(unamemap_add(*puid, fqname, 1) != ID_MAPPER_SUCCESS)
+      if(unamemap_add(*puid, fqname, 1, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
         {
           LogCrit(COMPONENT_IDMAPPER,
                   "uid2name: uidmap_add %s %u failed",
@@ -198,7 +200,8 @@ v3compat:
   struct passwd *pp;
   char buff[NFS4_MAX_DOMAIN_LEN];
 
-  if(unamemap_get(*puid, name, namesize) == ID_MAPPER_SUCCESS)
+  status = unamemap_get(*puid, name, namesize);
+  if( status == ID_MAPPER_SUCCESS)
     {
       LogFullDebug(COMPONENT_IDMAPPER,
                    "uid2name: unamemap_get uid %u returned %s",
@@ -226,7 +229,7 @@ v3compat:
                    "uid2name: getpwuid_r uid %u returned %s",
                    *puid, name);
 
-      if(unamemap_add(*puid, name, 1) != ID_MAPPER_SUCCESS)
+      if(unamemap_add(*puid, name, 1, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
         {
           LogCrit(COMPONENT_IDMAPPER,
                   "uid2name: uidmap_add %s %u failed",
@@ -267,6 +270,7 @@ int name2uid(char *full_name, uid_t * puid)
 #endif
   char fqname[NFS4_MAX_DOMAIN_LEN];
   int rc;
+  int status;
   name = full_name;
 #else  /* !_USE_NFSIDMAP */
   char short_name[2 * NFS4_MAX_DOMAIN_LEN];
@@ -276,7 +280,8 @@ int name2uid(char *full_name, uid_t * puid)
   name = short_name;
 #endif /* _USE_NFSIDMAP */
 
-  if(uidmap_get(name, &uid) == ID_MAPPER_SUCCESS)
+  status = uidmap_get(name, &uid);
+  if(status == ID_MAPPER_SUCCESS)
     {
       LogFullDebug(COMPONENT_IDMAPPER,
                    "name2uid: uidmap_get mapped %s to uid=%u",
@@ -324,7 +329,7 @@ int name2uid(char *full_name, uid_t * puid)
                       res->pw_uid, res->pw_gid);
             }
 #endif                          /* _HAVE_GSSAPI */
-          if(uidmap_add(name, res->pw_uid, 1) != ID_MAPPER_SUCCESS)
+          if(uidmap_add(name, res->pw_uid, 1, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
             {
               LogMajor(COMPONENT_IDMAPPER,
                        "name2uid: uidmap_add %s %u failed",
@@ -383,7 +388,7 @@ int name2uid(char *full_name, uid_t * puid)
                    "name2uid: nfs4_name_to_uid %s returned %u",
                    fqname, *puid);
 
-      if(uidmap_add(fqname, *puid, 1) != ID_MAPPER_SUCCESS)
+      if(uidmap_add(fqname, *puid, 1, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
         {
           LogCrit(COMPONENT_IDMAPPER,
                   "name2uid: uidmap_add %s %u failed",
@@ -422,7 +427,7 @@ v3compat:
           if(end && *end != '\0')
             return 0;
        
-          if(uidmap_add(name, uid, 0) != ID_MAPPER_SUCCESS)
+          if(uidmap_add(name, uid, 0, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
             {
               /* Failure to update the in-core table is not fatal */
               LogMajor(COMPONENT_IDMAPPER,
@@ -461,6 +466,7 @@ int principal2uid(char *principal, uid_t * puid)
   gid_t gss_gid;
   uid_t gss_uid;
   int rc;
+  int status;
 
   /* NFSv4 specific features: RPCSEC_GSS will provide principal like:
    *  nfs/<host> 
@@ -479,7 +485,8 @@ int principal2uid(char *principal, uid_t * puid)
       return 1;
     }
 
-  if(uidmap_get(principal, &gss_uid) != ID_MAPPER_SUCCESS)
+  status = uidmap_get(principal, &gss_uid);
+  if(status != ID_MAPPER_SUCCESS)
     {
       if(!nfsidmap_set_conf())
         {
@@ -565,7 +572,7 @@ int principal2uid(char *principal, uid_t * puid)
 #ifdef _MSPAC_SUPPORT
 principal_found:
 #endif
-      if(uidmap_add(principal, gss_uid, 0) != ID_MAPPER_SUCCESS)
+      if(uidmap_add(principal, gss_uid, 0, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
 	{
 	  LogCrit(COMPONENT_IDMAPPER,
 		  "principal2uid: uidmap_add %s %u failed",
@@ -607,6 +614,7 @@ principal_found:
  */
 int gid2name(char *name, gid_t * pgid, size_t namesize)
 {
+  int status;
 #ifndef _USE_NFSIDMAP
   struct group g;
 #ifndef _SOLARIS
@@ -618,7 +626,8 @@ int gid2name(char *name, gid_t * pgid, size_t namesize)
 #ifdef _USE_NFSIDMAP
   int rc;
 
-  if(gnamemap_get(*pgid, name, namesize) == ID_MAPPER_SUCCESS)
+  status = gnamemap_get(*pgid, name, namesize);
+  if(status == ID_MAPPER_SUCCESS)
     {
       LogFullDebug(COMPONENT_IDMAPPER,
                    "gid2name: gnamemap_get gid %u returned %s",
@@ -647,7 +656,7 @@ int gid2name(char *name, gid_t * pgid, size_t namesize)
                    "gid2name: nfs4_gid_to_name gid %u returned %s",
                    *pgid, name);
 
-      if(gidmap_add(name, *pgid, 1) != ID_MAPPER_SUCCESS)
+      if(gidmap_add(name, *pgid, 1, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
         {
           LogCrit(COMPONENT_IDMAPPER,
                   "gid2name: gidmap_add %s %u failed",
@@ -668,7 +677,8 @@ v3compat:
   return 1;
 
 #else
-  if(gnamemap_get(*pgid, name, namesize) == ID_MAPPER_SUCCESS)
+  status = gnamemap_get(*pgid, name, namesize);
+  if(status == ID_MAPPER_SUCCESS)
     {
       LogFullDebug(COMPONENT_IDMAPPER,
                    "gid2name: gnamemap_get gid %u returned %s",
@@ -696,7 +706,7 @@ v3compat:
                    "gid2name: getgrgid_r gid %u returned %s",
                    *pgid, name);
 
-      if(gidmap_add(name, *pgid, 1) != ID_MAPPER_SUCCESS)
+      if(gidmap_add(name, *pgid, 1, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
         {
           LogCrit(COMPONENT_IDMAPPER,
                   "gid2name: gidmap_add %s %u failed",
@@ -729,6 +739,7 @@ int name2gid(char *full_name, gid_t * pgid)
   struct group g;
   struct group *pg = NULL;
   static char buff[NFS4_MAX_DOMAIN_LEN]; /* Working area for getgrnam_r */
+  int status;
 
 
 #ifndef _USE_NFSIDMAP
@@ -741,7 +752,8 @@ int name2gid(char *full_name, gid_t * pgid)
   name = full_name;
 #endif
 
-  if(gidmap_get(name, &gid) == ID_MAPPER_SUCCESS)
+  status = gidmap_get(name, &gid);
+  if( status == ID_MAPPER_SUCCESS)
     {
       LogFullDebug(COMPONENT_IDMAPPER,
                    "name2gid: gidmap_get mapped %s to gid= %u",
@@ -796,7 +808,7 @@ int name2gid(char *full_name, gid_t * pgid)
                    "name2gid: nfs4_name_to_gid %s returned %u",
                    name, *pgid);
 
-      if(gidmap_add(name, *pgid, 1) != ID_MAPPER_SUCCESS)
+      if(gidmap_add(name, *pgid, 1, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
         {
           LogCrit(COMPONENT_IDMAPPER,
                   "name2gid: gidmap_add %s %u failed",
@@ -837,7 +849,7 @@ int name2gid(char *full_name, gid_t * pgid)
         {
           *pgid = pg->gr_gid;
 
-          if(gidmap_add(name, pg->gr_gid, 1) != ID_MAPPER_SUCCESS)
+          if(gidmap_add(name, pg->gr_gid, 1, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
             {
               LogMajor(COMPONENT_IDMAPPER,
                        "name2gid: gidmap_add %s %u failed",
@@ -856,7 +868,7 @@ v3compat:
           if(end && *end != '\0')
             return 0;
        
-          if(gidmap_add(name, gid, 0) != ID_MAPPER_SUCCESS)
+          if(gidmap_add(name, gid, 0, (status == ID_MAPPER_CACHE_EXPIRE)) != ID_MAPPER_SUCCESS)
             {
               /* Failure to update the in-core table is not fatal */
               LogMajor(COMPONENT_IDMAPPER,

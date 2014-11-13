@@ -150,6 +150,7 @@
 #define ID_MAPPER_NOT_FOUND           2
 #define ID_MAPPER_INVALID_ARGUMENT    3
 #define ID_MAPPER_FAIL                4
+#define ID_MAPPER_CACHE_EXPIRE        5
 
 /* Hard and soft limit for nfsv4 quotas */
 #define NFS_V4_MAX_QUOTA_SOFT 4294967296LL      /*  4 GB */
@@ -751,13 +752,13 @@ int compare_name(hash_buffer_t * buff1, hash_buffer_t * buff2);
 int compare_id(hash_buffer_t * buff1, hash_buffer_t * buff2);
 int compare_state_id(hash_buffer_t * buff1, hash_buffer_t * buff2);
 
-int idmap_add(hash_table_t * ht, char *key, uint32_t val);
-int uidmap_add(char *key, uid_t val, int propagate);
-int gidmap_add(char *key, gid_t val, int propagate);
+int idmap_add(hash_table_t * ht, char *key, uint32_t val, int overwrite);
+int uidmap_add(char *key, uid_t val, int propagate, int overwrite);
+int gidmap_add(char *key, gid_t val, int propagate, int overwrite);
 
-int namemap_add(hash_table_t * ht, uint32_t key, char *val);
-int unamemap_add(uid_t key, char *val, int propagate);
-int gnamemap_add(gid_t key, char *val);
+int namemap_add(hash_table_t * ht, uint32_t key, char *val, int overwrite);
+int unamemap_add(uid_t key, char *val, int propagate, int overwrite);
+int gnamemap_add(gid_t key, char *val, int overwrite);
 int uidgidmap_add(uid_t key, gid_t value);
 
 int idmap_get(hash_table_t * ht, char *key, uint32_t *pval);
