@@ -80,6 +80,7 @@
 
 /* NFS daemon behavior default values */
 #define NB_WORKER_THREAD_DEFAULT  16
+#define IDMAP_CACHE_TIMEOUT_DEFAULT (60 * 30)
 #define NB_FLUSHER_THREAD_DEFAULT 16
 #define NB_REQUEST_BEFORE_QUEUE_AVG  1000
 #define NB_MAX_PENDING_REQUEST 30
@@ -254,6 +255,7 @@ typedef struct nfs_core_param__
   bool_t nsm_use_caller_name;
 #endif
   bool_t clustered;
+  unsigned int idmap_cache_timeout;
 } nfs_core_parameter_t;
 
 typedef struct nfs_ip_name_param__

@@ -500,6 +500,10 @@ int nfs_read_core_conf(config_file_t in_config, nfs_core_parameter_t * pparam)
         {
           pparam->clustered = StrToBoolean(key_value);
         }
+      else if(!strcasecmp(key_name, "IDMAP_Cache_Timeout"))
+        {
+          pparam->idmap_cache_timeout = atoi(key_value);
+        }
       else
         {
           LogCrit(COMPONENT_CONFIG,
