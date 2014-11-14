@@ -770,15 +770,6 @@ int unamemap_get(uid_t key, char *val, size_t size);
 int gnamemap_get(gid_t key, char *val, size_t size);
 int uidgidmap_get(uid_t key, gid_t *pval);
 
-int idmap_remove(hash_table_t * ht, char *key);
-int uidmap_remove(char *key);
-int gidmap_remove(char *key);
-
-int namemap_remove(hash_table_t * ht, uint32_t key);
-int unamemap_remove(uid_t key);
-int gnamemap_remove(gid_t key);
-int uidgidmap_remove(uid_t key);
-
 int uidgidmap_clear();
 int idmap_clear();
 int namemap_clear();
