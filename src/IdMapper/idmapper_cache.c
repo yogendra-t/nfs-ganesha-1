@@ -52,6 +52,7 @@
 #include <strings.h>
 #include <pwd.h>
 #include <grp.h>
+#include <time.h>
 
 #ifdef _APPLE
 #define strnlen( s, l ) strlen( s )
@@ -69,13 +70,20 @@ hash_table_t *ht_uidgid;
 /**
  * @brief Overload mapping of uid/gid to buffdata values
  *
- * To save allocating space, uids and gids are overlayed into the value pointer
- * (.pdata) of the hashbuffer_t.  This union accomplishes that mapping.
+ * For uid->name map table, the key is uid and the value is (timestamp + name)
+ * For name->uid map table, the key is name and the value is (timestamp + real_id)
+ *
+ * The idmap_val struct is allocated for each entry and added to hash table.
+ * When the hash entry expires (after nfs_param.core_param.idmap_cache_timeout), 
+ * the same idmap_val struct is reused when the entry is refreshed.
  */
 
-union idmap_val {
-	caddr_t id_as_pointer;
-	uint32_t real_id;
+struct idmap_val {
+        time_t timestamp;
+        union {
+          uint32_t real_id;
+          char *name;
+        };
 };
 
 /**
@@ -188,7 +196,8 @@ int compare_id(hash_buffer_t * buff1, hash_buffer_t * buff2)
  */
 int display_idmapper_name(struct display_buffer * dspbuf, hash_buffer_t * pbuff)
 {
-  return display_cat(dspbuf, pbuff->pdata);
+  struct idmap_val *val = pbuff->pdata;
+  return display_cat(dspbuf, val->name);
 }                               /* display_idmapper */
 
 /**
@@ -205,7 +214,8 @@ int display_idmapper_name(struct display_buffer * dspbuf, hash_buffer_t * pbuff)
  */
 int display_idmapper_id(struct display_buffer * dspbuf, hash_buffer_t * pbuff)
 {
-  return display_printf(dspbuf, "%lu", (unsigned long)(pbuff->pdata));
+  struct idmap_val *val = pbuff->pdata;
+  return display_printf(dspbuf, "%u", val->real_id);
 }                               /* display_idmapper_val */
 
 void idmapper_init()
@@ -252,83 +262,188 @@ void idmapper_init()
  */
 int idmap_add(hash_table_t * ht, char *key, uint32_t val, int overwrite)
 {
+  hash_buffer_t del_buffkey;
   hash_buffer_t buffkey;
   hash_buffer_t buffdata;
   int rc;
-  union idmap_val local_val = {0};
+  int status = ID_MAPPER_SUCCESS;
+  struct idmap_val *local_val = NULL;
 
   if(ht == NULL || key == NULL)
     return ID_MAPPER_INVALID_ARGUMENT;
 
-  if((buffkey.pdata = gsh_strdup(key)) == NULL)
-    return ID_MAPPER_INSERT_MALLOC_ERROR;
+  if(overwrite)
+    {
+      /* Remove the existing entry from hash table and reuse it.
+         If the entry is not present then create new one 
+      */
+      del_buffkey.pdata = key;
+      del_buffkey.len = strlen(key);
+      if(HashTable_Get_and_Del(ht, &del_buffkey, &buffdata, &buffkey) == HASHTABLE_SUCCESS)
+        {
+          local_val = (struct idmap_val *)buffdata.pdata;
+          local_val->real_id = val;
+          local_val->timestamp = time(NULL);
+          goto found;
+        }
+  }
 
-  /* Build the key */
+  /* New insert. 
+   * Create the buffkey and buffdata and build the key.
+   */
+  if((buffkey.pdata = gsh_strdup(key)) == NULL)
+    {
+      status = ID_MAPPER_INSERT_MALLOC_ERROR;
+      goto err;
+    }
   buffkey.len = strlen(key);
 
   /* Build the value */
-  local_val.real_id = val;
-  buffdata.pdata = local_val.id_as_pointer;
-  buffdata.len = sizeof(union idmap_val);
+  local_val = (struct idmap_val *)gsh_malloc(sizeof(struct idmap_val));
+  if(local_val == NULL)
+    {
+      LogEvent(COMPONENT_IDMAPPER, "idmap_add: malloc failed");
+      status = ID_MAPPER_INSERT_MALLOC_ERROR;
+      goto err;
+    }
+  local_val->real_id = val;
+  local_val->timestamp = time(NULL);
+
+  buffdata.pdata = local_val;
+  buffdata.len = sizeof(struct idmap_val);
+
+found:
   LogFullDebug(COMPONENT_IDMAPPER, "Adding the following principal->uid mapping: %s->%lu",
-	       (char *)buffkey.pdata, (unsigned long int)buffdata.pdata);
+               (char *)buffkey.pdata, (unsigned long int)local_val->real_id);
+
   rc = HashTable_Test_And_Set(ht, &buffkey, &buffdata,
                               HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
 
-  if(rc != HASHTABLE_SUCCESS && rc != HASHTABLE_ERROR_KEY_ALREADY_EXISTS)
-    return ID_MAPPER_INSERT_MALLOC_ERROR;
+  if(rc == HASHTABLE_ERROR_KEY_ALREADY_EXISTS)
+    {
+      /* Assume the insert operation as success
+       * Still need to free up key and value
+       */
+      status = ID_MAPPER_SUCCESS;
+      goto err;
+    }
 
+  if(rc != HASHTABLE_SUCCESS)
+    {
+      status = ID_MAPPER_INSERT_MALLOC_ERROR;
+      goto err;
+    }
   return ID_MAPPER_SUCCESS;
+
+err:
+  if(buffkey.pdata) gsh_free(buffkey.pdata);
+  if(local_val) gsh_free(local_val);
+  return status;
 }                               /* idmap_add */
 
 int namemap_add(hash_table_t * ht, uint32_t key, char *val, int overwrite)
 {
+  hash_buffer_t del_buffkey;
   hash_buffer_t buffkey;
   hash_buffer_t buffdata;
   int rc = 0;
-  union idmap_val local_key = {0};
+  int status = ID_MAPPER_SUCCESS;
+  struct idmap_val *local_val = NULL;
 
   if(ht == NULL || val == NULL)
     return ID_MAPPER_INVALID_ARGUMENT;
 
-  if((buffdata.pdata = gsh_strdup(val)) == NULL)
-    return ID_MAPPER_INSERT_MALLOC_ERROR;
+  if(overwrite)
+    {
+      /* Remove the existing entry from hash table and reuse it.
+       * If the entry is not present then create new one 
+       */
+       del_buffkey.pdata = (void *)((unsigned long)key);
+       del_buffkey.len = sizeof(void *);
+
+       if(HashTable_Get_and_Del(ht, &del_buffkey, &buffdata, &buffkey) == HASHTABLE_SUCCESS)
+         {
+           local_val = (struct idmap_val *)buffdata.pdata;
+           /* In comman case the mapping won't change.
+            * In very rare case the uid to name mapping will change.
+            * Compare the existing name to new name, if it is changed, then only malloc for new name.
+            */
+           if(strcmp(local_val->name, val))
+             {
+               /* Name has changed.*/
+               gsh_free(local_val->name);
+               if((local_val->name = gsh_strdup(val)) == NULL)
+                 {
+                   status = ID_MAPPER_INSERT_MALLOC_ERROR;
+                   goto err;
+                 }
+             }
+             local_val->timestamp = time(NULL);
+             goto found;
+        }
+     }
+
+  local_val = (struct idmap_val *)gsh_malloc(sizeof(struct idmap_val));
+  if(local_val == NULL)
+    {
+      LogEvent(COMPONENT_IDMAPPER, "idmap_add: malloc failed");
+      status = ID_MAPPER_INSERT_MALLOC_ERROR;
+      goto err;
+    }
+  if((local_val->name = gsh_strdup(val)) == NULL)
+    {
+      status = ID_MAPPER_INSERT_MALLOC_ERROR;
+      goto err;
+    }
+  local_val->timestamp = time(NULL);
 
   /* Build the data */
-  buffdata.len = strlen(val);
+  buffdata.pdata = (void *)local_val;
+  buffdata.len = strlen(val) + sizeof(struct idmap_val);
 
-  /* Build the key */
-  local_key.real_id = key;
-  buffkey.pdata = local_key.id_as_pointer;
-  buffkey.len = sizeof(union idmap_val);
+  buffkey.pdata = (void *)((unsigned long)key);
+  buffkey.len = sizeof(void *);
 
+found:
   LogFullDebug(COMPONENT_IDMAPPER, "Adding the following uid->principal mapping: %lu->%s",
-	       (unsigned long int)buffkey.pdata, (char *)buffdata.pdata);
+               (unsigned long int)buffkey.pdata, (char *)local_val->name);
   rc = HashTable_Test_And_Set(ht, &buffkey, &buffdata,
                               HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
 
-  if(rc != HASHTABLE_SUCCESS && rc != HASHTABLE_ERROR_KEY_ALREADY_EXISTS)
-    return ID_MAPPER_INSERT_MALLOC_ERROR;
+  if(rc == HASHTABLE_ERROR_KEY_ALREADY_EXISTS)
+    {
+      /* Assume the insert operation as success
+       * Still need to free up key and value
+       */
+      status = ID_MAPPER_SUCCESS;
+      goto err;
+    }
 
+  if(rc != HASHTABLE_SUCCESS)
+  {
+    status = ID_MAPPER_INSERT_MALLOC_ERROR;
+    goto err;
+  }
   return ID_MAPPER_SUCCESS;
-}                               /* idmap_add */
+
+err:
+  if(local_val && local_val->name) gsh_free(local_val->name);
+  if(local_val)gsh_free(local_val);
+  return status;
+}                               /* namemap_add */
 
 int uidgidmap_add(uid_t key, gid_t value)
 {
   hash_buffer_t buffkey;
   hash_buffer_t buffdata;
   int rc = 0;
-  union idmap_val local_key = {0};
-  union idmap_val local_val = {0};
 
   /* Build keys and data, no storage is used there, caddr_t pointers are just charged */
-  local_key.real_id = key;
-  buffkey.pdata = local_key.id_as_pointer;
-  buffkey.len = sizeof(union idmap_val);
+  buffkey.pdata = (void *)((unsigned long)key);
+  buffkey.len = sizeof(void *);
 
-  local_val.real_id = value;
-  buffdata.pdata = local_val.id_as_pointer;
-  buffdata.len = sizeof(union idmap_val);
+  buffdata.pdata = (void *)((unsigned long)value);
+  buffdata.len = sizeof(void *);
 
   rc = HashTable_Test_And_Set(ht_uidgid, &buffkey, &buffdata,
                               HASHTABLE_SET_HOW_SET_OVERWRITE);
@@ -337,11 +452,13 @@ int uidgidmap_add(uid_t key, gid_t value)
     return ID_MAPPER_INSERT_MALLOC_ERROR;
 
   return ID_MAPPER_SUCCESS;
-
 }                               /* uidgidmap_add */
 
 static int uidgidmap_free(hash_buffer_t key, hash_buffer_t val)
 {
+  /* key and value are just an integers caste to ptr 
+   * Nothing to free for key or value
+   */
     LogFullDebug(COMPONENT_IDMAPPER, "Freeing uid->gid mapping: %lu->%lu",
 		 (unsigned long)key.pdata, (unsigned long)val.pdata);
   return 1;
@@ -359,20 +476,28 @@ int uidgidmap_clear()
 
 static int idmap_free(hash_buffer_t key, hash_buffer_t val)
 {
-  if (val.pdata != NULL)
-    LogFullDebug(COMPONENT_IDMAPPER, "Freeing uid->principal mapping: %p->%s",
-                 key.pdata, (char *)val.pdata);
+  struct idmap_val *entry = (struct idmap_val *)val.pdata;
+  if (entry != NULL)
+    LogFullDebug(COMPONENT_IDMAPPER, "Freeing uid->name mapping: %lu->%s",
+                 (unsigned long)key.pdata, entry->name);
 
-  /* key is just an integer caste to charptr */
-  if (val.pdata != NULL)
-    gsh_free(val.pdata);
+  /* key is just an integer caste to ptr 
+   * Nothing to free for key
+   */
+
+  /* Free up the value, which is of type idmap_val*/
+  if(entry != NULL)
+    { 
+      gsh_free(entry->name);
+      gsh_free(entry);
+    }
   return 1;
 }
 
 int idmap_clear()
 {
   int rc;
-  LogInfo(COMPONENT_IDMAPPER, "Clearing all principal->uid map entries.");
+  LogInfo(COMPONENT_IDMAPPER, "Clearing all uid->name map entries.");
   rc = HashTable_Delall(ht_pwuid, idmap_free);
   if (rc != HASHTABLE_SUCCESS)
     return ID_MAPPER_FAIL;
@@ -381,13 +506,19 @@ int idmap_clear()
 
 static int namemap_free(hash_buffer_t key, hash_buffer_t val)
 {
-  if (key.pdata != NULL)
-    LogFullDebug(COMPONENT_IDMAPPER, "Freeing principal->uid mapping: %s->%p",
-                 (char *)key.pdata, val.pdata);
+  struct idmap_val *entry = (struct idmap_val *)val.pdata;
+  if (entry != NULL)
+    LogFullDebug(COMPONENT_IDMAPPER, "Freeing principal->uid mapping: %s->%lu",
+                 (char *)key.pdata, (unsigned long)entry->real_id);
 
-  /* val is just an integer caste to charptr */
-  if (key.pdata != NULL)
+
+  /* key is charptr for name. Need to free it */
+  if(key.pdata != NULL)
     gsh_free(key.pdata);
+
+  /* val is of type idmap_val. Need to free it */
+  if(entry != NULL)
+    gsh_free(entry); 
   return 1;
 }
 
@@ -479,7 +610,7 @@ int gnamemap_add(gid_t key, char *val, int overwrite)
  * @param key      [IN]  the ip address requested
  * @param pval     [OUT] the uid/gid.  Always uint32_t
  *
- * @return ID_MAPPER_SUCCESS or ID_MAPPER_NOT_FOUND
+ * @return ID_MAPPER_SUCCESS or ID_MAPPER_NOT_FOUND or ID_MAPPER_CACHE_EXPIRE 
  *
  */
 int idmap_get(hash_table_t * ht, char *key, uint32_t *pval)
@@ -496,11 +627,19 @@ int idmap_get(hash_table_t * ht, char *key, uint32_t *pval)
 
   if(HashTable_Get(ht, &buffkey, &buffval) == HASHTABLE_SUCCESS)
     {
-      union idmap_val id;
-
-      id.id_as_pointer = buffval.pdata;
-      *pval = id.real_id;
-      status = ID_MAPPER_SUCCESS;
+      struct idmap_val *entry = (struct idmap_val *) buffval.pdata;
+      if(entry->timestamp > time(NULL) - (time_t)nfs_param.core_param.idmap_cache_timeout)
+        {
+          *pval = entry->real_id;
+          status = ID_MAPPER_SUCCESS;
+        }
+      else
+        {
+          // Cache expired.
+          LogFullDebug(COMPONENT_IDMAPPER, "Marking cache entry expired: %s->%lu",
+                       key, (unsigned long)entry->real_id);
+          status = ID_MAPPER_CACHE_EXPIRE;
+        }
     }
   else
     {
@@ -515,20 +654,28 @@ int namemap_get(hash_table_t * ht, uint32_t key, char *pval, size_t size)
   hash_buffer_t buffkey;
   hash_buffer_t buffval;
   int status;
-  union idmap_val local_key = {0};
 
   if(ht == NULL || pval == NULL)
     return ID_MAPPER_INVALID_ARGUMENT;
 
-  local_key.real_id = key;
-  buffkey.pdata = local_key.id_as_pointer;
-  buffkey.len = sizeof(union idmap_val);
+  buffkey.pdata = (void *)((unsigned long)key);
+  buffkey.len = sizeof(void *);
 
   if(HashTable_Get(ht, &buffkey, &buffval) == HASHTABLE_SUCCESS)
     {
-      strmaxcpy(pval, (char *)buffval.pdata, size);
-
-      status = ID_MAPPER_SUCCESS;
+      struct idmap_val *entry = (struct idmap_val *)buffval.pdata;
+      if(entry->timestamp > time(NULL) - (time_t)nfs_param.core_param.idmap_cache_timeout)
+        {
+          strmaxcpy(pval, entry->name, size);
+          status = ID_MAPPER_SUCCESS;
+        }
+      else
+        {
+          // Cache expired.
+          LogFullDebug(COMPONENT_IDMAPPER, "Marking cache entry expired: %lu->%s",
+                       (unsigned long)key, entry->name);
+          status = ID_MAPPER_CACHE_EXPIRE;
+        }
     }
   else
     {
@@ -536,28 +683,23 @@ int namemap_get(hash_table_t * ht, uint32_t key, char *pval, size_t size)
     }
 
   return status;
-}                               /* idmap_get */
+}                               /* namemap_get */
 
 int uidgidmap_get(uid_t key, gid_t *pval)
 {
   hash_buffer_t buffkey;
   hash_buffer_t buffval;
   int status;
-  union idmap_val local_key = {0};
 
   if(pval == NULL)
     return ID_MAPPER_INVALID_ARGUMENT;
 
-  local_key.real_id = key;
-  buffkey.pdata = local_key.id_as_pointer;
-  buffkey.len = sizeof(union idmap_val);
+  buffkey.pdata = (void *)((unsigned long)key);
+  buffkey.len = sizeof(void *);
 
   if(HashTable_Get(ht_uidgid, &buffkey, &buffval) == HASHTABLE_SUCCESS)
     {
-      union idmap_val id;
-
-      id.id_as_pointer = buffval.pdata;
-      *pval = id.real_id;
+      *pval = (unsigned long)buffval.pdata;
       status = ID_MAPPER_SUCCESS;
     }
   else
@@ -573,7 +715,6 @@ int uidgidmap_get(uid_t key, gid_t *pval)
     }
 
   return status;
-
 }                               /* uidgidmap_get */
 
 int uidmap_get(char *key, uid_t *pval)
@@ -634,21 +775,18 @@ int idmap_remove(hash_table_t * ht, char *key)
 
 int namemap_remove(hash_table_t * ht, uint32_t key)
 {
-  hash_buffer_t buffkey, old_data;
+  hash_buffer_t buffkey;
   int status;
-  union idmap_val local_key = {0};
 
   if(ht == NULL)
     return ID_MAPPER_INVALID_ARGUMENT;
 
-  local_key.real_id = key;
-  buffkey.pdata = local_key.id_as_pointer;
-  buffkey.len = sizeof(union idmap_val);
+  buffkey.pdata = (void *)((unsigned long)key);
+  buffkey.len = sizeof(void *);
 
-  if(HashTable_Del(ht, &buffkey, NULL, &old_data) == HASHTABLE_SUCCESS)
+  if(HashTable_Del(ht, &buffkey, NULL, NULL) == HASHTABLE_SUCCESS)
     {
       status = ID_MAPPER_SUCCESS;
-      gsh_free(old_data.pdata);
     }
   else
     {
@@ -660,15 +798,13 @@ int namemap_remove(hash_table_t * ht, uint32_t key)
 
 int uidgidmap_remove(uid_t key)
 {
-  hash_buffer_t buffkey, old_data;
+  hash_buffer_t buffkey;
   int status;
-  union idmap_val local_key = {0};
 
-  local_key.real_id = key;
-  buffkey.pdata = local_key.id_as_pointer;
-  buffkey.len = sizeof(union idmap_val);
+  buffkey.pdata = (void *)((unsigned long)key);
+  buffkey.len = sizeof(void *);
 
-  if(HashTable_Del(ht_uidgid, &buffkey, NULL, &old_data) == HASHTABLE_SUCCESS)
+  if(HashTable_Del(ht_uidgid, &buffkey, NULL, NULL) == HASHTABLE_SUCCESS)
     {
       status = ID_MAPPER_SUCCESS;
     }
