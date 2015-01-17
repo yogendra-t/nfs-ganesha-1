@@ -746,6 +746,7 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t *data,
                                                          &sattr,
                                                          data->pcontext,
                                                          (arg_OPEN4.share_access & OPEN4_SHARE_ACCESS_WRITE) != 0,
+                                                         arg_OPEN4.openhow.opentype == OPEN4_CREATE,
                                                          &cache_status)) !=
                                                          CACHE_INODE_SUCCESS)
                     {
@@ -1136,6 +1137,7 @@ nfs4_chk_shrdny(struct nfs_argop4 *op, compound_data_t *data,
                 if(cache_inode_setattr(pentry, sattr,
                     data->pcontext,
                     (arg_OPEN4.share_access & OPEN4_SHARE_ACCESS_WRITE) != 0,
+                    TRUE, /* AttrProvided is true only in CREATE type opens */
                     &cache_status) != CACHE_INODE_SUCCESS) {
                         return nfs4_Errno(cache_status);
                 }

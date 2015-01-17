@@ -67,6 +67,7 @@
  * @param[in]     entry   Entry whose attributes are to be set
  * @param[in,out] attr    Attributes to set/result of set
  * @param[in]     context FSAL credentials
+ * @param[in]     is_create True if called as part of a create
  * @param[out]    status  Returned status
  *
  * @retval CACHE_INODE_SUCCESS if operation is a success
@@ -77,6 +78,7 @@ cache_inode_setattr(cache_entry_t *entry,
                     fsal_attrib_list_t *attr,
                     fsal_op_context_t *context,
                     int is_open_write,
+		    bool is_create,
                     cache_inode_status_t *status)
 {
      fsal_status_t fsal_status = {0, 0};
@@ -108,6 +110,16 @@ cache_inode_setattr(cache_entry_t *entry,
      *status = cache_inode_lock_trust_attrs(entry, context, TRUE);
      if(*status != CACHE_INODE_SUCCESS)
        return *status;
+
+     /* Setting uid/gid works only for root. AIX or Irix NFS clients
+      * send gid on create if the parent directory has setgid bit.
+      *
+      * Clear the OWNER and GROUP attributes for create requests for
+      * non-root users.
+      */
+     if (is_create && FSAL_OP_CONTEXT_TO_UID(context) != 0) {
+         attr->asked_attributes &= ~(FSAL_ATTR_OWNER | FSAL_ATTR_GROUP);
+     }
 
      /* Do permission checks */
      if(cache_inode_check_setattr_perms(entry,

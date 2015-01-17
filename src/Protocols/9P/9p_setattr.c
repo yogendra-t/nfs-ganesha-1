@@ -189,6 +189,7 @@ int _9p_setattr( _9p_request_data_t * preq9p,
                            &fsalattr,
                            &pfid->fsal_op_context,
                            FALSE,
+                           FALSE,
                            &cache_status ) != CACHE_INODE_SUCCESS )
         return _9p_rerror( preq9p, msgtag, _9p_tools_errno( cache_status ), plenout, preply ) ;
 

@@ -310,6 +310,7 @@ int nfs_Mkdir(nfs_arg_t *parg,
                                              &sattr,
                                              pcontext,
                                              FALSE,
+                                             TRUE,
                                              &cache_status) != CACHE_INODE_SUCCESS)
                         goto out_failed;
                      }

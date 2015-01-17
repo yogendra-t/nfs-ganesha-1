@@ -234,6 +234,7 @@ int nfs_Setattr(nfs_arg_t *parg,
                                      &setattr,
                                      pcontext,
                                      FALSE,
+                                     FALSE,
                                      &cache_status);
 
   if(cache_status == CACHE_INODE_SUCCESS)

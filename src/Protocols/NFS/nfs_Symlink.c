@@ -282,6 +282,7 @@ int nfs_Symlink(nfs_arg_t *parg,
                                          &attributes_symlink,
                                          pcontext,
                                          FALSE,
+                                         FALSE,
                                          &cache_status) != CACHE_INODE_SUCCESS)
                       goto out_error;
                 }

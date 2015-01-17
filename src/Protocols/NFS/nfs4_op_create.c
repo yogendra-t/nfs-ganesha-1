@@ -440,6 +440,7 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
                                                   &sattr,
                                                   data->pcontext,
                                                   FALSE,
+                                                  TRUE,
                                                   &cache_status)) != CACHE_INODE_SUCCESS)
 
              {

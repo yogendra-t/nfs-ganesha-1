@@ -2760,6 +2760,7 @@ int fn_Cache_inode_setattr(int argc,    /* IN : number of args in argv */
                                          &context->client,
                                          &context->context,
                                          FALSE,
+                                         FALSE,
                                          &context->cache_status)) != CACHE_INODE_SUCCESS)
 
     {

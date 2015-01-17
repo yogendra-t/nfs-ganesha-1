@@ -342,6 +342,7 @@ int nfs_Create(nfs_arg_t *parg,
                                                &attributes_create,
                                                pcontext,
                                                FALSE,
+                                               TRUE,
                                                &cache_status) != CACHE_INODE_SUCCESS)
                           goto out_failed;
                       /* if setattr is successful, use new attribute */
