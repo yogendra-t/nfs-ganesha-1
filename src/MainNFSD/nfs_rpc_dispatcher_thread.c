@@ -1263,6 +1263,7 @@ void nfs_rpc_enqueue_req(request_data_t *reqdata)
 	glist_add_tail(&q->q, &reqdata->req_q);
 	++(q->size);
 	active = q->size;
+	++(q->total);
 	pthread_spin_unlock(&q->sp);
 
 	atomic_inc_uint32_t(&enqueued_reqs);
