@@ -398,7 +398,6 @@ install -m 644 scripts/init.d/sysconfig/ganesha		%{buildroot}%{_sysconfdir}/sysc
 %endif
 
 %if %{with pt}
-install -m 755 ganesha.pt.init %{buildroot}%{_sysconfdir}/init.d/nfs-ganesha-pt
 install -m 644 config_samples/pt.conf %{buildroot}%{_sysconfdir}/ganesha
 %endif
 
@@ -459,7 +458,9 @@ make DESTDIR=%{buildroot} install
 %files
 %defattr(-,root,root,-)
 %{_bindir}/ganesha.nfsd
-%{_bindir}/libntirpc.a
+%{_libdir}/libntirpc.so.1.3.0
+%{_libdir}/libntirpc.so.1.3
+%{_libdir}/libntirpc.so
 %config %{_sysconfdir}/dbus-1/system.d/org.ganesha.nfsd.conf
 %config(noreplace) %{_sysconfdir}/sysconfig/ganesha
 %config(noreplace) %{_sysconfdir}/logrotate.d/ganesha
@@ -568,7 +569,6 @@ make DESTDIR=%{buildroot} install
 %files pt
 %defattr(-,root,root,-)
 %{_libdir}/ganesha/libfsalpt*
-%config(noreplace) %{_sysconfdir}/init.d/nfs-ganesha-pt
 %config(noreplace) %{_sysconfdir}/ganesha/pt.conf
 %endif
 
