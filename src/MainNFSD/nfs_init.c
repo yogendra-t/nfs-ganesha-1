@@ -70,7 +70,6 @@
 #include "uid2grp.h"
 #include "pnfs_utils.h"
 
-
 /* global information exported to all layers (as extern vars) */
 nfs_parameter_t nfs_param;
 
@@ -100,6 +99,10 @@ pthread_t _9p_rdma_dispatcher_thrid;
 
 #ifdef _USE_NFS_MSK
 pthread_t nfs_msk_dispatcher_thrid;
+#endif
+
+#ifdef _USE_NFS_RDMA
+pthread_t nfs_rdma_dispatcher_thrid;
 #endif
 
 char *config_path = GANESHA_CONFIG_PATH;
@@ -196,12 +199,12 @@ void nfs_print_param_config(void)
 	printf("\tDRC_UDP_Checksum = %u ;\n",
 	       nfs_param.core_param.drc.udp.checksum);
 	printf("\tDecoder_Fridge_Expiration_Delay = %" PRIu64 " ;\n",
-	       nfs_param.core_param.decoder_fridge_expiration_delay);
+	       (uint64_t) nfs_param.core_param.decoder_fridge_expiration_delay);
 	printf("\tDecoder_Fridge_Block_Timeout = %" PRIu64 " ;\n",
-	       nfs_param.core_param.decoder_fridge_block_timeout);
+	       (uint64_t) nfs_param.core_param.decoder_fridge_block_timeout);
 
 	printf("\tManage_Gids_Expiration = %" PRIu64 " ;\n",
-	       nfs_param.core_param.manage_gids_expiration);
+	       (uint64_t) nfs_param.core_param.manage_gids_expiration);
 
 	if (nfs_param.core_param.drop_io_errors)
 		printf("\tDrop_IO_Errors = true ;\n");
@@ -449,6 +452,20 @@ static void nfs_Start_threads(void)
 		 "NFS/MSK dispatcher thread was started successfully");
 #endif
 
+#ifdef _USE_NFS_RDMA
+	/* Starting the NFS/RDMA dispatcher thread */
+	rc = pthread_create(&nfs_rdma_dispatcher_thrid, &attr_thr,
+			    nfs_rdma_dispatcher_thread, NULL);
+
+	if (rc != 0) {
+		LogFatal(COMPONENT_THREAD,
+			 "Could not create NFS/RDMA dispatcher, error = %d (%s)",
+			 errno, strerror(errno));
+	}
+	LogEvent(COMPONENT_THREAD,
+		 "NFS/RDMA dispatcher thread was started successfully");
+#endif
+
 #ifdef USE_DBUS
 	/* DBUS event thread */
 	rc = pthread_create(&gsh_dbus_thrid, &attr_thr, gsh_dbus_thread, NULL);
@@ -689,7 +706,6 @@ static void nfs_Init(const nfs_start_info_t *p_start_info)
 	}
 	LogInfo(COMPONENT_INIT,
 		"NFSv4 Session Id cache successfully initialized");
-
 
 #ifdef _USE_9P
 	LogDebug(COMPONENT_INIT, "Now building 9P resources");
