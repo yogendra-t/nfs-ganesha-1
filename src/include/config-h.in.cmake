@@ -14,7 +14,7 @@
 #define _GIT_HEAD_COMMIT "@_GIT_HEAD_COMMIT@"
 #define _GIT_DESCRIBE "@_GIT_DESCRIBE@"
 #define BUILD_HOST "@BUILD_HOST_NAME@"
-#define FSAL_MODULE_LOC "@MODULES_PATH@/@FSAL_DESTINATION@"
+#define FSAL_MODULE_LOC "@FSAL_DESTINATION@"
 /* Build controls */
 
 #cmakedefine _MSPAC_SUPPORT 1
@@ -26,7 +26,6 @@
 #cmakedefine PROXY_HANDLE_MAPPING 1
 #cmakedefine _USE_9P 1
 #cmakedefine _USE_9P_RDMA 1
-#cmakedefine _USE_NFS_MSK 1
 #cmakedefine _USE_NFS_RDMA 1
 #cmakedefine USE_FSAL_SHOOK 1
 #cmakedefine USE_FSAL_LUSTRE_UP 1

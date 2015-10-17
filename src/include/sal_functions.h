@@ -216,6 +216,17 @@ int get_nlm_state(enum state_type state_type,
 
 nfsstat4 clientid_error_to_nfsstat(clientid_status_t err);
 
+static inline
+nfsstat4 clientid_error_to_nfsstat_no_expire(clientid_status_t err)
+{
+	nfsstat4 rc = clientid_error_to_nfsstat(err);
+
+	if (rc == NFS4ERR_EXPIRED)
+		rc = NFS4ERR_STALE_CLIENTID;
+
+	return rc;
+}
+
 const char *clientid_error_to_str(clientid_status_t err);
 
 int nfs_Init_client_id(void);
@@ -238,6 +249,8 @@ int remove_unconfirmed_client_id(nfs_client_id_t *clientid);
 
 clientid_status_t nfs_client_id_confirm(nfs_client_id_t *clientid,
 					log_components_t component);
+
+bool clientid_has_state(nfs_client_id_t *clientid);
 
 bool nfs_client_id_expire(nfs_client_id_t *clientid, bool make_stale);
 
@@ -509,6 +522,26 @@ void Copy_nfs4_state_req(state_owner_t *owner, seqid4 seqid, nfs_argop4 *args,
 bool Check_nfs4_seqid(state_owner_t *owner, seqid4 seqid, nfs_argop4 *args,
 		      cache_entry_t *entry, nfs_resop4 *resp,
 		      const char *tag);
+
+/**
+ * @brief Determine if an NFS v4 owner has state associated with it
+ *
+ * @param[in] owner The owner of interest
+ *
+ * @retval true if the owner has state
+ */
+static inline bool owner_has_state(state_owner_t *owner)
+{
+	bool live_state;
+
+	PTHREAD_MUTEX_lock(&owner->so_mutex);
+
+	live_state = !glist_empty(&owner->so_owner.so_nfs4_owner.so_state_list);
+
+	PTHREAD_MUTEX_unlock(&owner->so_mutex);
+
+	return live_state;
+}
 
 /******************************************************************************
  *

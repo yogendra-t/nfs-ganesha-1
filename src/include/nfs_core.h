@@ -122,7 +122,6 @@ typedef struct request_data {
 } request_data_t;
 
 extern pool_t *request_pool;
-extern pool_t *dupreq_pool;	/* XXX hide */
 
 /* ServerEpoch is ServerBootTime unless overriden by -E command line option */
 extern struct timespec ServerBootTime;
@@ -151,10 +150,6 @@ void DispatchWork9P(request_data_t *req);
 void *_9p_rdma_dispatcher_thread(void *arg);
 void _9p_rdma_process_request(struct _9p_request_data *req9p);
 void _9p_rdma_cleanup_conn(msk_trans_t *trans);
-#endif
-
-#ifdef _USE_NFS_MSK
-void *nfs_msk_dispatcher_thread(void *UnusedArg);
 #endif
 
 /* in nfs_rpc_dispatcher_thread.c */

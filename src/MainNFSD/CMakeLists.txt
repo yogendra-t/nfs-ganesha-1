@@ -3,10 +3,6 @@ add_definitions(
   -D_GNU_SOURCE
 )
 
-include_directories(
-  ${LIBTIRPC_INCLUDE_DIR}
-)
-
 if(USE_DBUS)
   include_directories(
     ${DBUS_INCLUDE_DIRS}
@@ -38,13 +34,6 @@ if(USE_9P AND USE_9P_RDMA)
     9p_rdma_dispatcher.c
     9p_rdma_callbacks.c)
 endif(USE_9P AND USE_9P_RDMA)
-
-if(USE_NFS_MSK)
-  add_definitions(-D_USE_NFS_MSK)
-  SET(MainServices_STAT_SRCS
-    ${MainServices_STAT_SRCS}
-    nfs_rpc_msk.c)
-endif(USE_NFS_MSK)
 
 if(USE_NFS_RDMA)
   add_definitions(-D_USE_NFS_RDMA)
@@ -114,10 +103,6 @@ target_link_libraries(ganesha.nfsd
   ${LIBTIRPC_LIBRARIES}
   ${SYSTEM_LIBRARIES}
 )
-
-if(USE_9P AND USE_9P_RDMA)
-  target_link_libraries(ganesha.nfsd  mooshika ibverbs rdmacm )
-endif(USE_9P AND USE_9P_RDMA)
 
 install(TARGETS ganesha.nfsd COMPONENT daemon DESTINATION bin)
 

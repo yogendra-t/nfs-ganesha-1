@@ -97,10 +97,6 @@ pthread_t _9p_dispatcher_thrid;
 pthread_t _9p_rdma_dispatcher_thrid;
 #endif
 
-#ifdef _USE_NFS_MSK
-pthread_t nfs_msk_dispatcher_thrid;
-#endif
-
 #ifdef _USE_NFS_RDMA
 pthread_t nfs_rdma_dispatcher_thrid;
 #endif
@@ -438,20 +434,6 @@ static void nfs_Start_threads(void)
 	}
 #endif
 
-#ifdef _USE_NFS_MSK
-	/* Starting the NFS/MSK dispatcher thread */
-	rc = pthread_create(&nfs_msk_dispatcher_thrid, &attr_thr,
-			    nfs_msk_dispatcher_thread, NULL);
-
-	if (rc != 0) {
-		LogFatal(COMPONENT_THREAD,
-			 "Could not create NFS/MSK dispatcher, error = %d (%s)",
-			 errno, strerror(errno));
-	}
-	LogEvent(COMPONENT_THREAD,
-		 "NFS/MSK dispatcher thread was started successfully");
-#endif
-
 #ifdef _USE_NFS_RDMA
 	/* Starting the NFS/RDMA dispatcher thread */
 	rc = pthread_create(&nfs_rdma_dispatcher_thrid, &attr_thr,
@@ -561,13 +543,6 @@ static void nfs_Init(const nfs_start_info_t *p_start_info)
 	if (!request_pool)
 		LogFatal(COMPONENT_INIT,
 			 "Error while allocating request pool");
-
-	dupreq_pool =
-	    pool_init("Duplicate Request Pool", sizeof(dupreq_entry_t),
-		      pool_basic_substrate, NULL, NULL, NULL);
-	if (!(dupreq_pool))
-		LogFatal(COMPONENT_INIT,
-			"Error while allocating duplicate request pool");
 
 	/* If rpcsec_gss is used, set the path to the keytab */
 #ifdef _HAVE_GSSAPI

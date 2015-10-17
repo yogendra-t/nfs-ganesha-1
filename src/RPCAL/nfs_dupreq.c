@@ -53,6 +53,7 @@
 #define DUPREQ_BAD_ADDR1 0x01	/* safe for marked pointers, etc */
 #define DUPREQ_NOCACHE   0x02
 
+pool_t *dupreq_pool;
 pool_t *nfs_res_pool;
 pool_t *tcp_drc_pool;		/* pool of per-connection DRC objects */
 
@@ -278,9 +279,9 @@ void dupreq2_pkginit(void)
 	tcp_drc_pool = pool_init("TCP DRC Pool", sizeof(drc_t),
 				 pool_basic_substrate,
 				 NULL, NULL, NULL);
-	if (!(dupreq_pool))
+	if (unlikely(!(tcp_drc_pool)))
 		LogFatal(COMPONENT_INIT,
-			 "Error while allocating duplicate request pool");
+			 "Error while allocating TCP DRC pool");
 
 	drc_st = gsh_calloc(1, sizeof(struct drc_st));
 
@@ -969,6 +970,12 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs,
 	}
 
 	dk = alloc_dupreq();
+	if (dk == NULL) {
+		release_dk = false;
+		status = DUPREQ_ERROR;
+		goto release_dk;
+	}
+
 	dk->hin.drc = drc;	/* trans. call path ref to dv */
 
 	switch (drc->type) {

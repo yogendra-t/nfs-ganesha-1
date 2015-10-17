@@ -75,6 +75,9 @@
 @BCOND_GUI_UTILS@ gui_utils
 %global use_gui_utils %{on_off_switch gui_utils}
 
+@BCOND_NTIRPC@ system_ntirpc
+%global use_system_ntirpc %{on_off_switch system_ntirpc}
+
 %global dev_version %{lua: extraver = string.gsub('@GANESHA_EXTRA_VERSION@', '%-', '.'); print(extraver) }
 
 %define sourcename @CPACK_SOURCE_PACKAGE_FILE_NAME@
@@ -98,6 +101,9 @@ BuildRequires:	dbus-devel
 BuildRequires:	libcap-devel
 BuildRequires:	libblkid-devel
 BuildRequires:	libuuid-devel
+%if %{with system_ntirpc}
+BuildRequires: libntirpc-devel >= 1.3.0
+%endif
 Requires:	dbus
 Requires:	nfs-utils
 %if %{with_nfsidmap}
@@ -324,7 +330,7 @@ be used with NFS-Ganesha to support PT
 Summary: The NFS-GANESHA's GLUSTER FSAL
 Group: Applications/System
 Requires:	nfs-ganesha = %{version}-%{release}
-BuildRequires:        glusterfs-api-devel >= 3.7
+BuildRequires:        glusterfs-api-devel >= 3.7.4
 BuildRequires:        libattr-devel, libacl-devel
 
 %description gluster
@@ -349,6 +355,7 @@ cmake .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DUSE_FSAL_PANFS=%{use_fsal_panfs}		\
 	-DUSE_FSAL_PT=%{use_fsal_pt}			\
 	-DUSE_FSAL_GLUSTER=%{use_fsal_gluster}		\
+	-DUSE_SYSTEM_NTIRPC=%{use_system_ntirpc}	\
 	-DUSE_9P_RDMA=%{use_rdma}			\
 	-DUSE_FSAL_LUSTRE_UP=%{use_lustre_up}		\
 	-DUSE_LTTNG=%{use_lttng}			\
@@ -429,14 +436,6 @@ install -m 755 scripts/init.d/nfs-ganesha.gpfs		%{buildroot}%{_sysconfdir}/init.
 %endif
 %endif
 
-%if %{with utils}
-pushd .
-cd scripts/ganeshactl/
-python setup.py --quiet install --root=%{buildroot}
-popd
-install -m 755 Protocols/NLM/sm_notify.ganesha		%{buildroot}%{_bindir}/sm_notify.ganesha
-%endif
-
 make DESTDIR=%{buildroot} install
 
 %post
@@ -458,9 +457,13 @@ make DESTDIR=%{buildroot} install
 %files
 %defattr(-,root,root,-)
 %{_bindir}/ganesha.nfsd
+%if ! %{with system_ntirpc}
 %{_libdir}/libntirpc.so.1.3.0
 %{_libdir}/libntirpc.so.1.3
 %{_libdir}/libntirpc.so
+%{_libdir}/pkgconfig/libntirpc.pc
+%{_includedir}/ntirpc/
+%endif
 %config %{_sysconfdir}/dbus-1/system.d/org.ganesha.nfsd.conf
 %config(noreplace) %{_sysconfdir}/sysconfig/ganesha
 %config(noreplace) %{_sysconfdir}/logrotate.d/ganesha

@@ -20,7 +20,7 @@ set(GANESHA_MAJOR_VERSION 2)
 set(GANESHA_MINOR_VERSION 3)
 
 # needs to come after project()
-IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT OR CMAKE_INSTALL_PREFIX STREQUAL "/usr")
 	SET(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install prefix for common files" FORCE)
 	message(STATUS "override default CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 	SET(SYSCONFDIR "/etc" CACHE PATH "Install prefix for common files" FORCE)
@@ -29,7 +29,7 @@ ELSE()
 	message(STATUS "was set CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 	SET(SYSCONFDIR "${CMAKE_INSTALL_PREFIX}/etc" CACHE PATH "Install prefix for common files" FORCE)
 	SET(SYSSTATEDIR "${CMAKE_INSTALL_PREFIX}/var" CACHE PATH "Install prefix for common files" FORCE)
-ENDIF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+ENDIF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT OR CMAKE_INSTALL_PREFIX STREQUAL "/usr")
 # Patch level is always ".0" for mainline (master).  It is blank for development.
 # When starting a stable maintenance branch, this becomes ".N"
 # where N is monotonically increasing starting at 1. Remember to include the "." !!
@@ -38,7 +38,7 @@ set(GANESHA_PATCH_LEVEL )
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -rc4-ibm3)
+set(GANESHA_EXTRA_VERSION -rc7-ibm4)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -155,13 +155,14 @@ if (MSVC)
 endif(MSVC)
 
 # Library path name
-if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
-	set(LIB_INSTALL_DIR lib64 CACHE PATH
+get_property(USE_LIB64 GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS)
+if (USE_LIB64)
+	set(LIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/lib64 CACHE PATH
 		"Specify name of libdir inside install path")
-else( CMAKE_SIZEOF_VOID_P EQUAL 8 )
-	set(LIB_INSTALL_DIR lib CACHE PATH
+else (USE_LIB64)
+	set(LIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/lib CACHE PATH
 		"Specify name of libdir inside install path")
-endif( CMAKE_SIZEOF_VOID_P EQUAL 8 )
+endif (USE_LIB64)
 
 IF(FSAL_DESTINATION)
     set( FSAL_DESTINATION ${FSAL_DESTINATION} )
@@ -193,7 +194,8 @@ option(USE_FSAL_SHOOK "build SHOOK FSAL" ON)
 # Activate FSAL Upcalls for FSAL_LUSTRE
 option(USE_FSAL_LUSTRE_UP "add Upcalls support for LUSTRE FSAL" OFF)
 
-# From TI-RPC
+# nTIRPC
+option(USE_SYSTEM_NTIRPC "Use the system nTIRPC, rather than the submodule" OFF)
 option (USE_GSS "enable RPCSEC_GSS support" ON)
 option(TIRPC_EPOLL "platform supports EPOLL or emulation" ON)
 
@@ -265,7 +267,6 @@ if(USE_BLKIN)
 endif(USE_BLKIN)
 
 # NFS RDMA
-option(USE_NFS_MSK "enable NFS/Mooshika support" OFF)
 option(USE_NFS_RDMA "enable NFS/RDMA support" OFF)
 
 # Enable 9P Support
@@ -283,13 +284,6 @@ option(USE_ADMIN_TOOLS "Package Admin scripts" OFF)
 
 # Build and package Python gui admin scripts for managing via DBus
 option(USE_GUI_ADMIN_TOOLS "Package GUI Admin scripts" ON)
-
-# Final location for server modules such as FSAL shared objects
-# We do this separately because packaging (RPM) installs in a
-# "build root" but installs somewhere else (/usr)
-set(MODULES_PATH ${CMAKE_INSTALL_PREFIX}
-  CACHE PATH
-  "Path prefix for dlopen loaded modules")
 
 # Enable GCC Thread-sanitizer
 option(USE_TSAN "Enable GCC Thread-Sanitizer" OFF)
@@ -412,31 +406,11 @@ IF(MOOSHIKA_PREFIX)
   set(ENV{PKG_CONFIG_PATH} "${PKG_CONFIG_PATH}:${MOOSHIKA_PREFIX}/lib/pkgconfig")
 ENDIF()
 
-IF(LIBIBVERBS_PREFIX)
-  set(LIBIBVERBS_PREFIX ${LIBIBVERBS_PREFIX} CACHE PATH "Path to libibverbs installation")
-  LIST(APPEND CMAKE_REQUIRED_INCLUDES "${LIBIBVERBS_PREFIX}/include")
-  include_directories("${LIBIBVERBS_PREFIX}/usr/include")
-ENDIF()
-IF(LIBRDMACM_PREFIX)
-  set(LIBRDMACM_PREFIX ${LIBRDMACM_PREFIX} CACHE PATH "Path to librdmacm installation")
-  LIST(APPEND CMAKE_REQUIRED_INCLUDES "${LIBRDMACM_PREFIX}/include")
-  include_directories("${LIBRDMACM_PREFIX}/include")
-ENDIF()
-
-if(USE_NFS_RDMA)
-  find_library(LIBIBVERBS ibverbs)
-  if(LIBIBVERBS)
-    set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${LIBIBVERBS})
-  else(LIBIBVERBS)
-    message(FATAL_ERROR "libibverbs not found")
-  endif(LIBIBVERBS)
-  find_library(LIBRDMACM rdmacm)
-  if(LIBRDMACM)
-    set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${LIBRDMACM})
-  else(LIBRDMACM)
-    message(FATAL_ERROR "librdmacm not found")
-  endif(LIBRDMACM)
-endif(USE_NFS_RDMA)
+if(USE_NFS_RDMA OR USE_9P_RDMA)
+  find_package(RDMA REQUIRED)
+  include_directories(${RDMA_INCLUDE_DIR})
+  set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${RDMA_LIBRARY})
+endif(USE_NFS_RDMA OR USE_9P_RDMA)
 
 if(USE_CB_SIMULATOR AND NOT USE_DBUS)
   message(WARNING "The callback simulator needs DBUS.  Enabling DBUS")
@@ -527,6 +501,20 @@ if(KRB5_FOUND AND HAVE_GSSAPI_H)
 else(KRB5_FOUND AND HAVE_GSSAPI_H)
   message(FATAL_ERROR "Cannot find kerberos or GSS libraries")
 endif(KRB5_FOUND AND HAVE_GSSAPI_H)
+
+if (USE_ADMIN_TOOLS)
+  find_package(PythonInterp)
+  if (NOT PYTHONINTERP_FOUND)
+    message(FATAL_ERROR "Cannot find python for enabling admin tools")
+  endif (NOT PYTHONINTERP_FOUND)
+  if (USE_GUI_ADMIN_TOOLS)
+    find_program(PYUIC NAMES pyuic4 DOC "PyQT UI-compiler executable")
+    if (NOT PYUIC)
+      message(STATUS "Cannot find PyQt4.  Disabling GUI admin tools")
+      set(USE_GUI_ADMIN_TOOLS OFF)
+    endif (NOT PYUIC)
+  endif (USE_GUI_ADMIN_TOOLS)
+endif (USE_ADMIN_TOOLS)
 
 # Validate fsal dependencies
 
@@ -782,7 +770,6 @@ endif( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_LESS "2.8" )
 
 include_directories(
   "${PROJECT_BINARY_DIR}/include"
-  "${PROJECT_SOURCE_DIR}/libntirpc/ntirpc/"
   "${PROJECT_SOURCE_DIR}/include"
   "${OS_INCLUDE_DIR}"
   "${KRB5_INCLUDE_DIRS}"
@@ -796,14 +783,6 @@ if(USE_CB_SIMULATOR)
   set(_USE_CB_SIMULATOR ON)
 endif(USE_CB_SIMULATOR)
 
-
-#callers add:
-#  target_link_libraries(your_library ${LIBTIRPC_LIBRARIES})
-set(LIBTIRPC_INCLUDE_DIR
-  "${PROJECT_BINARY_DIR}/libtirpc/ntirpc"
-  "${PROJECT_BINARY_DIR}/libtirpc/ntirpc/rpc"
-)
-set(LIBTIRPC_LIBRARIES ntirpc)
 
 # Find misc system libs
 find_library(LIBRT rt)  # extended Pthreads functions
@@ -915,13 +894,27 @@ endif(USE_DBUS)
 
 set(GANESHA_CORE ${GANESHA_CORE} NodeList)
 
-if(USE_9P_RDMA OR USE_NFS_MSK)
+if(USE_9P_RDMA)
   find_package(PkgConfig)
   pkg_check_modules(MOOSHIKA REQUIRED libmooshika>=0.6)
   set(GANESHA_CORE ${GANESHA_CORE} ${MOOSHIKA_LIBRARIES})
   include_directories(${MOOSHIKA_INCLUDE_DIRS})
   link_directories (${MOOSHIKA_LIBRARY_DIRS})
-endif(USE_9P_RDMA OR USE_NFS_MSK)
+endif(USE_9P_RDMA)
+
+if (USE_SYSTEM_NTIRPC)
+  find_package(NTIRPC 1.3.0 REQUIRED)
+else (USE_SYSTEM_NTIRPC)
+  # Set options for submodule
+  option(USE_RPC_RDMA "Use RDMA" ${USE_NFS_RDMA})
+  option(USE_TIRPC_EPOLL "Use EPOLL" ${USE_TIRPC_EPOLL})
+  add_subdirectory(libntirpc)
+  set(NTIRPC_LIBRARY ntirpc)
+  set(NTIRPC_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/libntirpc/ntirpc/")
+  message(STATUS "Using ntirpc submodule")
+endif (USE_SYSTEM_NTIRPC)
+message(${NTIRPC_INCLUDE_DIR})
+include_directories(${NTIRPC_INCLUDE_DIR})
 
 # All the plumbing in the basement
 set(SYSTEM_LIBRARIES
@@ -931,6 +924,7 @@ set(SYSTEM_LIBRARIES
   ${KRB5_LIBRARIES}
   ${CMAKE_THREAD_LIBS_INIT}
   ${LIBRT}
+  ${NTIRPC_LIBRARY}
 )
 
 # Config file; make sure it doesn't clobber an existing one
@@ -941,16 +935,6 @@ install(DIRECTORY config_samples DESTINATION share/doc/ganesha)
 # pre-create PREFIX/var/run/ganesha
 install(DIRECTORY DESTINATION ${SYSSTATEDIR}/run/ganesha)
 
-IF( NOT EXISTS ${PROJECT_SOURCE_DIR}/libntirpc/ganesha/CMakeLists.txt )
-message( FATAL_ERROR
-"No CMakeLists.txt found in libntirpc
-This probably means that the directory was not properly populated.
-Please run the following command to do that and use cmake again:
-    git submodule update --init
-Alternatively, if you are not using git, get the current version at
-    https://github.com/nfs-ganesha/ntirpc" )
-ENDIF( NOT EXISTS ${PROJECT_SOURCE_DIR}/libntirpc/ganesha/CMakeLists.txt )
-
 add_subdirectory(log)
 add_subdirectory(config_parsing)
 add_subdirectory(cidr)
@@ -960,7 +944,6 @@ add_subdirectory(hashtable)
 add_subdirectory(NodeList)
 add_subdirectory(cache_inode)
 add_subdirectory(SAL)
-add_subdirectory(libntirpc/ganesha)
 add_subdirectory(RPCAL)
 add_subdirectory(Protocols)
 add_subdirectory(support)
@@ -1004,6 +987,7 @@ message(STATUS "USE_FSAL_SHOOK = ${USE_FSAL_SHOOK}")
 message(STATUS "USE_FSAL_LUSTRE_UP = ${USE_FSAL_LUSTRE_UP}")
 message(STATUS "USE_FSAL_GLUSTER = ${USE_FSAL_GLUSTER}")
 message(STATUS "USE_FSAL_NULL = ${USE_FSAL_NULL}")
+message(STATUS "USE_SYSTEM_NTIRPC = ${USE_SYSTEM_NTIRPC}")
 message(STATUS "USE_DBUS = ${USE_DBUS}")
 message(STATUS "USE_CB_SIMULATOR = ${USE_CB_SIMULATOR}")
 message(STATUS "USE_NFSIDMAP = ${USE_NFSIDMAP}")
@@ -1214,16 +1198,6 @@ set(USE_LTTNG ${USE_LTTNG}
   "Enable LTTng tracing"
   FORCE)
 
-set(USE_NFS_MSK ${USE_NFS_MSK}
-  CACHE BOOL
-  "enable nfs Mooshika"
-  FORCE)
-
-set(_USE_NFS_MSK ${USE_NFS_MSK}
-  CACHE BOOL
-  "enable nfs Mooshika in config"
-  FORCE)
-
 set(USE_NFS_RDMA ${USE_NFS_RDMA}
   CACHE BOOL
   "enable nfs RDMA"
@@ -1352,6 +1326,12 @@ if(USE_GUI_ADMIN_TOOLS)
 else(USE_GUI_ADMIN_TOOLS)
     set(BCOND_GUI_UTILS "%bcond_with")
 endif(USE_GUI_ADMIN_TOOLS)
+
+if (USE_SYSTEM_NTIRPC)
+  set(BCOND_NTIRPC "%bcond_without")
+else(USE_SYSTEM_NTIRPC)
+  set(BCOND_NTIRPC "%bcond_with")
+endif(USE_SYSTEM_NTIRPC)
 
 # Now create a useable specfile
 configure_file(
