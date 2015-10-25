@@ -102,7 +102,10 @@ fsal_status_t GPFSFSAL_open(struct fsal_obj_handle *obj_hdl,	/* IN */
 					 file_desc, posix_flags, reopen);
 
 	if (FSAL_IS_ERROR(status)) {
-		/* TODO: for AFM, provide a good explanation later */
+		/* In some environments, "root" is denied write access,
+		 * so try with the request credentials if the above call
+		 * fails.
+		 */
 		fsal_set_credentials(p_context->creds);
 		status = fsal_internal_handle2fd(gpfs_fs->root_fd,
 						 myself->handle,
@@ -177,8 +180,12 @@ fsal_status_t GPFSFSAL_read(int fd,	/* IN */
 
 	/* read operation */
 
+	fsal_set_credentials(op_ctx->creds);
+
 	nb_read = gpfs_ganesha(OPENHANDLE_READ_BY_FD, &rarg);
 	errsv = errno;
+
+	fsal_restore_ganesha_credentials();
 
 	if (nb_read == -1) {
 		if (errsv == EUNATCH)
@@ -282,6 +289,8 @@ fsal_status_t GPFSFSAL_alloc(int fd,			/* IN */
 		aarg.options = IO_ALLOCATE;
 	else
 		aarg.options = IO_DEALLOCATE;
+
+	fsal_set_credentials(op_ctx->creds);
 
 	rc = gpfs_ganesha(OPENHANDLE_ALLOCATE_BY_FD, &aarg);
 	errsv = errno;

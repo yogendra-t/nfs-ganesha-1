@@ -833,16 +833,12 @@ int enable_log_facility(char *name)
 	if (facility == NULL) {
 		PTHREAD_RWLOCK_unlock(&log_rwlock);
 		LogInfo(COMPONENT_LOG, "Facility %s does not exist", name);
-		return -EEXIST;
+		return -ENOENT;
 	}
-	if (!glist_null(&facility->lf_active)) {
-		PTHREAD_RWLOCK_unlock(&log_rwlock);
-		LogCrit(COMPONENT_LOG,
-			 "Log facility (%s) is already enabled",
-			 name);
-		return -EINVAL;
-	}
-	glist_add_tail(&active_facility_list, &facility->lf_active);
+
+	if (glist_null(&facility->lf_active))
+		glist_add_tail(&active_facility_list, &facility->lf_active);
+
 	if (facility->lf_headers > max_headers)
 		max_headers = facility->lf_headers;
 	PTHREAD_RWLOCK_unlock(&log_rwlock);
@@ -871,8 +867,8 @@ int disable_log_facility(char *name)
 	facility = find_log_facility(name);
 	if (facility == NULL) {
 		PTHREAD_RWLOCK_unlock(&log_rwlock);
-		LogInfo(COMPONENT_LOG, "Facility %s already exists", name);
-		return -EEXIST;
+		LogInfo(COMPONENT_LOG, "Facility %s does not exist", name);
+		return -ENOENT;
 	}
 	if (glist_null(&facility->lf_active)) {
 		PTHREAD_RWLOCK_unlock(&log_rwlock);
@@ -928,7 +924,7 @@ static int set_default_log_facility(const char *name)
 	if (facility == NULL) {
 		PTHREAD_RWLOCK_unlock(&log_rwlock);
 		LogCrit(COMPONENT_LOG, "Facility %s does not exist", name);
-		return -EEXIST;
+		return -ENOENT;
 	}
 	if (facility == default_facility)
 		goto out;

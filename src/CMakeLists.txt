@@ -38,7 +38,7 @@ set(GANESHA_PATCH_LEVEL .0)
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -7ibm5)
+set(GANESHA_EXTRA_VERSION -8ibm6)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -519,6 +519,13 @@ if(USE_FSAL_GLUSTER)
 	message(STATUS "Could not find libacl, disabling GLUSTER fsal build")
     endif(HAVE_ACL_H)
   endif(USE_FSAL_GLUSTER)
+  pkg_check_modules(GLFS_H_LOOKUPAT_WITH_FOLLOW glusterfs-api>=7.3.7.4)
+  if(NOT GLFS_H_LOOKUPAT_WITH_FOLLOW_FOUND)
+	set(USE_GLUSTER_SYMLINK_MOUNT OFF)
+	message(WARNING "Disabling symlink mount for FSAL GLUSTER")
+  else()
+	set(USE_GLUSTER_SYMLINK_MOUNT ON)
+  endif(NOT GLFS_H_LOOKUPAT_WITH_FOLLOW_FOUND)
 endif(USE_FSAL_GLUSTER)
 
 if(USE_FSAL_CEPH)
