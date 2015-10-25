@@ -37,7 +37,6 @@
 
 #include "gsh_list.h"
 #include "wait_queue.h"
-#include "gsh_intrinsic.h"
 
 struct req_q {
 	pthread_spinlock_t sp;
@@ -49,11 +48,11 @@ struct req_q {
 
 struct req_q_pair {
 	const char *s;
-	 CACHE_PAD(0);
+	GSH_CACHE_PAD(0);
 	struct req_q producer;	/* from decoder */
-	 CACHE_PAD(1);
+	GSH_CACHE_PAD(1);
 	struct req_q consumer;	/* to executor */
-	 CACHE_PAD(2);
+	GSH_CACHE_PAD(2);
 };
 
 #define N_REQ_QUEUES 256 /* power of 2 would be better */
@@ -76,7 +75,7 @@ struct nfs_req_st {
 		uint64_t size;
 		struct qwait qwait[N_REQ_QUEUES];
 	} reqs;
-	CACHE_PAD(1);
+	GSH_CACHE_PAD(1);
 	struct {
 		pthread_mutex_t mtx;
 		struct glist_head q;

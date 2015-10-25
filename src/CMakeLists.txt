@@ -38,7 +38,7 @@ set(GANESHA_PATCH_LEVEL )
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -rc7-ibm5)
+set(GANESHA_EXTRA_VERSION -rc8-ibm6)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -219,6 +219,7 @@ option(_NO_PORTMAPPER "disable registration on portmapper" ON)
 option(_NO_XATTRD "disable ghost xattr directory and files support" ON)
 option(DEBUG_SAL "enable debugging of SAL by keeping list of all locks, stateids, and state owners" OFF)
 option(_VALGRIND_MEMCHECK "Initialize buffers passed to GPFS ioctl that valgrind doesn't understand" OFF)
+option(ENABLE_LOCKTRACE "Enable lock trace" OFF)
 option(PROXY_HANDLE_MAPPING "enable NFSv3 handle mapping for PROXY FSAL" OFF)
 
 # Debug symbols (-g) build flag
@@ -519,6 +520,10 @@ endif (USE_ADMIN_TOOLS)
 # Validate fsal dependencies
 
 if(USE_FSAL_GLUSTER)
+  find_package(PkgConfig)
+  IF(GLUSTER_PREFIX)
+    set(ENV{PKG_CONFIG_PATH} "${PKG_CONFIG_PATH}:${GLUSTER_PREFIX}/lib/pkgconfig")
+  ENDIF(GLUSTER_PREFIX)
   pkg_check_modules(GFAPI glusterfs-api>=7.3.7)
   if(NOT GFAPI_FOUND)
     if(STRICT_PACKAGE)
@@ -527,6 +532,13 @@ if(USE_FSAL_GLUSTER)
       message(WARNING "Cannot find GLUSTER GFAPI runtime. Disabling GLUSTER fsal build")
       set(USE_FSAL_GLUSTER OFF)
     endif(STRICT_PACKAGE)
+  else(NOT GFAPI_FOUND)
+    message(STATUS "GFAPI_INCLUDE_DIRS=${GFAPI_INCLUDE_DIRS}")
+    message(STATUS "GFAPI_LIBRARY_DIRS=${GFAPI_LIBRARY_DIRS}")
+    include_directories(${GFAPI_INCLUDE_DIRS})
+    # missing directory not provided by current version of GlusterFS
+    include_directories(${GFAPI_PREFIX}/include)
+    link_directories (${GFAPI_LIBRARY_DIRS})
   endif(NOT GFAPI_FOUND)
 
   if(USE_FSAL_GLUSTER)
@@ -755,6 +767,7 @@ if(USE_LTTNG)
   # if your LTTng is not in a standard place
   find_package(LTTng)
   if(LTTNG_FOUND)
+    include_directories(${LTTNG_INCLUDE_DIR})
   else(LTTNG_FOUND)
     message(WARNING "LTTng libraries not found. Disabling USE_LTTNG")
     set(USE_LTTNG OFF)
@@ -896,8 +909,20 @@ set(GANESHA_CORE ${GANESHA_CORE} NodeList)
 
 if(USE_9P_RDMA)
   find_package(PkgConfig)
+  IF(MOOSHIKA_PREFIX)
+    set(ENV{PKG_CONFIG_PATH} "${PKG_CONFIG_PATH}:${MOOSHIKA_PREFIX}/lib/pkgconfig")
+  ENDIF()
   pkg_check_modules(MOOSHIKA REQUIRED libmooshika>=0.6)
-  set(GANESHA_CORE ${GANESHA_CORE} ${MOOSHIKA_LIBRARIES})
+  # Remove rdma and ibverbs libraries that have already been found by FindRDMA
+  #
+  # TODO: this temporary workaround will no longer be required
+  # with future mooshika versions (>1.0)
+  # Original code is: set(GANESHA_CORE ${GANESHA_CORE} ${MOOSHIKA_LIBRARIES})
+  #
+  set(MOOSHIKA_LIBS_EXCEPT_RDMA ${MOOSHIKA_LIBRARIES})
+  list(REMOVE_ITEM MOOSHIKA_LIBS_EXCEPT_RDMA rdmacm ibverbs)
+  set(GANESHA_CORE ${GANESHA_CORE} ${MOOSHIKA_LIBS_EXCEPT_RDMA})
+
   include_directories(${MOOSHIKA_INCLUDE_DIRS})
   link_directories (${MOOSHIKA_LIBRARY_DIRS})
 endif(USE_9P_RDMA)
