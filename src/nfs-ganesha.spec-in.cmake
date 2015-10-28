@@ -380,7 +380,14 @@ cmake .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DDISTNAME_HAS_GIT_DATA=OFF			\
 	-DUSE_MAN_PAGE=%{use_man_page}                  \
 %if %{with jemalloc}
-	-DALLOCATOR=jemalloc
+	-DALLOCATOR=jemalloc 				\
+%endif
+%if %{with gpfs}
+	-D_MSPAC_SUPPORT=ON						\
+	-DWBCLIENT_INCLUDE_DIR=/usr/lpp/mmfs/include/samba-4.0		\
+	-DWBCLIENT_LIBRARIES=/usr/lpp/mmfs/lib64/libwbclient.so.0	\
+	-DCMAKE_INSTALL_RPATH=/usr/lpp/mmfs/lib64/			\
+	-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON
 %endif
 
 make %{?_smp_mflags} || make %{?_smp_mflags} || make
