@@ -352,6 +352,10 @@ cmake .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DUSE_DBUS=ON					\
 	-DUSE_9P=ON					\
 	-DDISTNAME_HAS_GIT_DATA=OFF			\
+	-DWBCLIENT_INCLUDE_DIR=/usr/include/samba-4.0/	\
+	-DWBCLIENT_LIBRARIES=/usr/lib64/samba/libwbclient.so.0 \
+	-DCMAKE_INSTALL_RPATH=/usr/lib64/samba/		\
+	-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON		\
 %if %{with jemalloc}
 	-DALLOCATOR=jemalloc
 %endif
