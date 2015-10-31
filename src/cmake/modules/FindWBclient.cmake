@@ -26,12 +26,21 @@ find_library(WBCLIENT_LIBRARIES NAMES wbclient
   ${_WBCLIENT_PC_LIBDIR}
   )
 
-check_library_exists(
-  wbclient
-  wbcLookupSids
-  ${WBCLIENT_LIBRARIES}
-  WBCLIENT_LIB_OK
-  )
+# The following function (check_library_exists) actually takes a
+# directory as the third argument to pass to the compiler as '-L'
+# parameter.  WBCLIENT_LIBRARIES is the name of the actual library. This
+# fails to find the actual library with some compilers (e.g. gcc on
+# RHEL6.4). Commenting it out for now.
+#
+# NOTE: This is not really needed as linking will fail if the needed
+# function is not there in the library!
+#
+#check_library_exists(
+#  wbclient
+#  wbcLookupSids
+#  ${WBCLIENT_LIBRARIES}
+#  WBCLIENT_LIB_OK
+#  )
 
 # the stdint and stdbool includes are required (silly Cmake)
 check_include_files("stdint.h;stdbool.h;wbclient.h" WBCLIENT_H)
@@ -53,9 +62,9 @@ int main(void)
 }" WBCLIENT4_H)
 endif(WBCLIENT_H)
 
-if(WBCLIENT_LIB_OK AND WBCLIENT4_H)
+if(WBCLIENT4_H)
   set(WBCLIENT_FOUND 1)
   message(STATUS "Found Winbind4 client: ${WBCLIENT_LIB}")
-else(WBCLIENT_LIB_OK AND WBCLIENT4_H)
+else(WBCLIENT4_H)
   message(STATUS "Winbind4 client not found ${SAMBA4_PREFIX}/lib")
-endif(WBCLIENT_LIB_OK AND WBCLIENT4_H)
+endif(WBCLIENT4_H)
