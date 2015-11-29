@@ -52,6 +52,13 @@ pthread_mutex_t grace_mutex = PTHREAD_MUTEX_INITIALIZER;        /*< Mutex */
 struct glist_head clid_list = GLIST_HEAD_INIT(clid_list);  /*< Clients */
 struct glist_head clean_list = GLIST_HEAD_INIT(clean_list);  /*< For reaper */
 
+/* Ganesha1.5 recovery directory path is different from
+ * ganesha2.2 recovery directory path. When we can't find the
+ * recovery directory path, we allow all clients to reclaim.
+ * This is reset when we are not in grace!
+ */
+static bool allow_all_reclaim;
+
 static void nfs4_load_recov_clids_nolock(nfs_grace_start_t *gsp);
 static void nfs_release_nlm_state(char *release_ip);
 static void nfs_release_v4_client(char *ip);
@@ -134,6 +141,10 @@ int nfs_in_grace(void)
 	} else if (in_grace) {
 		LogDebug(COMPONENT_STATE, "NFS Server IN GRACE");
 	}
+
+	/* Reset allow_all_reclaim as we are not in grace */
+	if (!in_grace && allow_all_reclaim)
+		allow_all_reclaim = false;
 
 	return in_grace;
 }
@@ -519,6 +530,12 @@ void  nfs4_chk_clid_impl(nfs_client_id_t *clientid, clid_entry_t **clid_ent_arg)
 	LogDebug(COMPONENT_CLIENTID, "chk for %s", clientid->cid_recov_dir);
 	if (clientid->cid_recov_dir == NULL)
 		return;
+
+	/* If we are allowig every client to reclaim, let this client
+	 * reclaim even if we don't find it in the recovery client list.
+	 */
+	if (allow_all_reclaim)
+		clientid->cid_allow_reclaim = 1;
 
 	/* If there were no clients at time of restart, we're done */
 	if (glist_empty(&clid_list))
@@ -996,6 +1013,12 @@ static void nfs4_load_recov_clids_nolock(nfs_grace_start_t *gsp)
 				snprintf(path, sizeof(path), "%s/::ffff:%s/%s",
 					 NFS_V4_RECOV_ROOT, gsp->ipaddr,
 					 NFS_V4_RECOV_DIR);
+
+				/* Create old recovery directory for this IP */
+				snprintf(old_rec_dir, sizeof(old_rec_dir),
+					 "%s/::ffff:%s",
+					 NFS_V4_RECOV_ROOT, gsp->ipaddr);
+				(void)mkdir(old_rec_dir, 0755);
 				snprintf(old_rec_dir, sizeof(old_rec_dir),
 					 "%s/::ffff:%s/%s",
 					 NFS_V4_RECOV_ROOT, gsp->ipaddr,
@@ -1012,9 +1035,15 @@ static void nfs4_load_recov_clids_nolock(nfs_grace_start_t *gsp)
 				snprintf(path, sizeof(path), "%s/%s/%s",
 					 NFS_V4_RECOV_ROOT, gsp->ipaddr,
 					 NFS_V4_RECOV_DIR);
+
+				/* Create old recovery directory for this IP */
 				snprintf(old_rec_dir, sizeof(old_rec_dir),
-					 "%s/%s/%s",
-					 NFS_V4_RECOV_ROOT, gsp->ipaddr, NFS_V4_OLD_DIR);
+					 "%s/%s", NFS_V4_RECOV_ROOT,
+					 gsp->ipaddr);
+				(void)mkdir(old_rec_dir, 0755);
+				snprintf(old_rec_dir, sizeof(old_rec_dir),
+					 "%s/%s/%s", NFS_V4_RECOV_ROOT,
+					 gsp->ipaddr, NFS_V4_OLD_DIR);
 				rc = mkdir(old_rec_dir, 0755);
 				if (rc == -1 && errno != EEXIST) {
 					LogEvent(COMPONENT_CLIENTID,
@@ -1039,6 +1068,10 @@ static void nfs4_load_recov_clids_nolock(nfs_grace_start_t *gsp)
 			  LogEvent(COMPONENT_CLIENTID,
 				   "Failed to open v4 recovery dir (%s), errno=%d",
 				   old_rec_dir, errno);
+			  /* This should never happen unless the above mkdirs
+			   * fail, allow all reclaims if this ever happens!
+			   */
+			  allow_all_reclaim = true;
 			  return;
 			}
 			LogEvent(COMPONENT_CLIENTID, "Reading from old rec dir: %s",
@@ -1077,6 +1110,13 @@ static void nfs4_load_recov_clids_nolock(nfs_grace_start_t *gsp)
 			LogEvent(COMPONENT_CLIENTID,
 				 "Failed to open v4 recovery dir (%s), errno=%d",
 				 path, errno);
+			/* If we are taking over an IP address from a node that
+			 * is running an older ganesha version, this IP based
+			 * directory path may not exist. Ideally, we should
+			 * parse the old format here but for now, allow all
+			 * reclaims!
+			 */
+			allow_all_reclaim = true;
 			return;
 		}
 
