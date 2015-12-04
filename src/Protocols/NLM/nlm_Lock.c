@@ -129,8 +129,11 @@ int nlm4_Lock(nfs_arg_t *args,
 				    &nlm_client,
 				    &nlm_owner,
 				    &pblock_data);
-
-	if (rc >= 0) {
+	if (rc == NLM4_DENIED_NOLOCKS) {
+		LogWarn(COMPONENT_NLM,
+			 "NLM lock request DROPPED");
+		return NFS_REQ_DROP;
+	} else if (rc >= 0) {
 		/* Present the error back to the client */
 		res->res_nlm4.stat.stat = (nlm4_stats) rc;
 		LogDebug(COMPONENT_NLM,
