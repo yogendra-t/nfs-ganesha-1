@@ -224,12 +224,8 @@ option(ENFORCE_GCC "enforce gcc as a the C compiler used for the project" OFF)
 # enable code profiling [-g -pg]
 option(PROFILING "turn on code profiling (-g and -pg)" OFF)
 
-# MSPAC support -lwbclient link flag
-if( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
-  option(_MSPAC_SUPPORT "enable mspac Winbind support" ON)
-else( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
-  option(_MSPAC_SUPPORT "enable mspac Winbind support" OFF)
-endif( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
+# Disable for spectrum scale4.1 release
+option(_MSPAC_SUPPORT "enable mspac Winbind support" OFF)
 
 # CUnit
 option(USE_CUNIT "Use Cunit test framework" OFF)
@@ -700,13 +696,8 @@ if(USE_CUNIT)
 endif(USE_CUNIT)
 
 if(_MSPAC_SUPPORT)
-  find_package(WBclient REQUIRED)
-  if(WBCLIENT_FOUND AND WBCLIENT4_H)
-    set(SYSTEM_LIBRARIES ${WBCLIENT_LIBRARIES} ${SYSTEM_LIBRARIES})
-  else(WBCLIENT_FOUND AND WBCLIENT4_H)
-    message(WARNING "Samba 4 wbclient not found.  Disabling MSPAC_SUPPORT")
+    message(WARNING "MSPAC is not supported, disabling _MSPAC_SUPPORT")
     set(_MSPAC_SUPPORT OFF)
-  endif(WBCLIENT_FOUND AND WBCLIENT4_H)
 endif(_MSPAC_SUPPORT)
 
 if(USE_LTTNG)
