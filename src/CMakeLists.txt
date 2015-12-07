@@ -224,12 +224,8 @@ option(ENFORCE_GCC "enforce gcc as a the C compiler used for the project" OFF)
 # enable code profiling [-g -pg]
 option(PROFILING "turn on code profiling (-g and -pg)" OFF)
 
-# MSPAC support -lwbclient link flag
-if( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
-  option(_MSPAC_SUPPORT "enable mspac Winbind support" ON)
-else( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
-  option(_MSPAC_SUPPORT "enable mspac Winbind support" OFF)
-endif( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
+# Disable for spectrum scale4.1 release
+option(_MSPAC_SUPPORT "enable mspac Winbind support" OFF)
 
 # CUnit
 option(USE_CUNIT "Use Cunit test framework" OFF)
