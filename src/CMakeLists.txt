@@ -38,7 +38,7 @@ set(GANESHA_PATCH_LEVEL .0)
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -7ibm4)
+set(GANESHA_EXTRA_VERSION -7ibm5)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -224,12 +224,8 @@ option(ENFORCE_GCC "enforce gcc as a the C compiler used for the project" OFF)
 # enable code profiling [-g -pg]
 option(PROFILING "turn on code profiling (-g and -pg)" OFF)
 
-# MSPAC support -lwbclient link flag
-if( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
-  option(_MSPAC_SUPPORT "enable mspac Winbind support" ON)
-else( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
-  option(_MSPAC_SUPPORT "enable mspac Winbind support" OFF)
-endif( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
+# Disable for spectrum scale4.1 release
+option(_MSPAC_SUPPORT "enable mspac Winbind support" OFF)
 
 # CUnit
 option(USE_CUNIT "Use Cunit test framework" OFF)
