@@ -1963,9 +1963,32 @@ void cancel_blocked_lock(cache_entry_t *entry,
 			/* Unable to cancel,
 			 * assume that granted upcall is on it's way.
 			 */
+			LogFullDebug(COMPONENT_STATE,
+				     "Unable to cancel lock %d", state_status);
 			LogEntry("Unable to cancel (grant upcall expected)",
 				 lock_entry);
-			return;
+		}
+
+		/* If there is a pending upcall at this point, the
+		 * following request will release it. The upcall
+		 * processing code can just ignore the granted lock, if
+		 * a lock isn't found in the state_blocked_lock list.
+		 *
+		 * @todo: Maybe an issue if this was a lock upgrade?
+		 */
+		state_status = do_lock_op(entry,
+					  FSAL_OP_UNLOCK,
+					  lock_entry->sle_owner,
+					  &lock_entry->sle_lock,
+					  NULL,	/* no conflict expected */
+					  NULL,
+					  false, /* overlap not relevant */
+					  FSAL_POSIX_LOCK);
+		if (state_status != STATE_SUCCESS) {
+			/* lock was probably not granted */
+			LogFullDebug(COMPONENT_STATE,
+				     "Unable to unlock a blocked lock %d",
+				     state_status);
 		}
 	}
 
@@ -3686,10 +3709,12 @@ void find_blocked_lock_upcall(cache_entry_t *entry, void *owner,
 		PTHREAD_RWLOCK_unlock(&entry->state_lock);
 	}
 
-	/* We must be out of sync with FSAL, this is fatal */
-	LogLockDesc(COMPONENT_STATE, NIV_MAJ, "Blocked Lock Not Found for",
+	/* It is likely that we got an upcall before the cancel request.
+	 * The cancel code will also unlock, so there is nothing to do
+	 * even if this is a granted lock.
+	 */
+	LogLockDesc(COMPONENT_STATE, NIV_EVENT, "Blocked Lock Not Found for",
 		    entry, owner, lock);
-	LogFatal(COMPONENT_STATE, "Locks out of sync with FSAL");
 }
 
 /**
