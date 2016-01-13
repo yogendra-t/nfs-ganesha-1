@@ -3713,7 +3713,6 @@ void find_blocked_lock_upcall(cache_entry_t *entry, void *owner,
 	 * The cancel code will also unlock, so there is nothing to do
 	 * even if this is a granted lock.
 	 */
-	LogWarn(COMPONENT_STATE, "Grant type == %d\n", grant_type);
 	LogLockDesc(COMPONENT_STATE, NIV_EVENT, "Blocked Lock Not Found for",
 		    entry, owner, lock);
 }
