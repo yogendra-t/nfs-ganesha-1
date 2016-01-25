@@ -444,6 +444,7 @@ make DESTDIR=%{buildroot} install
 %systemd_post nfs-ganesha.service
 %systemd_post nfs-ganesha-lock.service
 %endif
+killall -SIGHUP dbus-daemon 2>&1 > /dev/null
 
 %preun
 %if %{with_systemd}
