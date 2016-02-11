@@ -921,6 +921,7 @@ dupreq_status_t nfs_dupreq_start(nfs_request_data_t *nfs_req,
 	bool release_dk = true;
 	nfs_res_t *res = NULL;
 	drc_t *drc;
+	enum drc_type dtype = get_drc_type(req);
 
 	/* Disabled? */
 	if (nfs_param.core_param.drc.disabled) {
@@ -938,7 +939,9 @@ dupreq_status_t nfs_dupreq_start(nfs_request_data_t *nfs_req,
 		goto out;
 	}
 
-	switch (drc->type) {
+	/* We use dtype instead of drc->type because this DRC may have been
+	 * used for NFSv3 and/or NFSv4 clients. We can't trust the drc type. */
+	switch (dtype) {
 	case DRC_TCP_V4:
 		if (nfs_req->funcdesc->service_function == nfs4_Compound) {
 			if (!nfs_dupreq_v4_cacheable(nfs_req)) {
