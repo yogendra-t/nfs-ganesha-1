@@ -89,7 +89,7 @@ static void StrExportOptions(struct export_perms *p_perms, char *buffer)
 	} else
 		buf += sprintf(buf, "              ");
 
-	if ((p_perms->set & EXPORT_OPTION_ACCESS_TYPE) != 0) {
+	if ((p_perms->set & EXPORT_OPTION_ACCESS_MASK) != 0) {
 		if ((p_perms->options & EXPORT_OPTION_READ_ACCESS) != 0)
 			buf += sprintf(buf, ", R");
 		else
@@ -1070,7 +1070,7 @@ struct config_item_list deleg_types[] =  {
 	/* Note: Access_Type defaults to None on purpose */		\
 	CONF_ITEM_ENUM_BITS_SET("Access_Type",				\
 		EXPORT_OPTION_NO_ACCESS,				\
-		EXPORT_OPTION_ACCESS_TYPE,				\
+		EXPORT_OPTION_ACCESS_MASK,				\
 		access_types, _struct_, _perms_.options, _perms_.set),	\
 	CONF_ITEM_LIST_BITS_SET("Protocols",				\
 		EXPORT_OPTION_PROTOCOLS, EXPORT_OPTION_PROTOCOLS,	\
@@ -1217,7 +1217,7 @@ static struct config_item export_params[] = {
 	CONF_ITEM_UI64("MaxOffsetRead", 512, UINT64_MAX, UINT64_MAX,
 		       gsh_export, MaxOffsetRead),
 	CONF_ITEM_BOOLBIT_SET("UseCookieVerifier",
-		true, EXPORT_OPTION_USE_COOKIE_VERIFIER,
+		false, EXPORT_OPTION_USE_COOKIE_VERIFIER,
 		gsh_export, options, options_set),
 	CONF_ITEM_BOOLBIT_SET("DisableReaddirPlus",
 		false, EXPORT_OPTION_NO_READDIR_PLUS,
@@ -1368,7 +1368,7 @@ static int build_default_root(struct config_error_type *err_type)
 					EXPORT_OPTION_TCP;
 
 	export->export_perms.set = EXPORT_OPTION_SQUASH_TYPES |
-				    EXPORT_OPTION_ACCESS_TYPE |
+				    EXPORT_OPTION_ACCESS_MASK |
 				    EXPORT_OPTION_PROTOCOLS |
 				    EXPORT_OPTION_TRANSPORTS |
 				    EXPORT_OPTION_AUTH_TYPES;

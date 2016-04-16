@@ -35,7 +35,8 @@ fhandle3 *objp;
 #else
 	register long __attribute__ ((__unused__)) * buf;
 #endif
-	if (xdrs->x_op == XDR_ENCODE) {
+	if (xdrs->x_op == XDR_ENCODE &&
+	    objp->fhandle3_len >= offsetof(file_handle_v3_t, fsopaque)) {
 		file_handle_v3_t *fh = (file_handle_v3_t *)objp->fhandle3_val;
 		fh->exportid = htons(fh->exportid);
 	}
@@ -44,7 +45,8 @@ fhandle3 *objp;
 	     NFS3_FHSIZE))
 		return (false);
 
-	if (xdrs->x_op == XDR_DECODE) {
+	if (xdrs->x_op == XDR_DECODE &&
+	    objp->fhandle3_len >= offsetof(file_handle_v3_t, fsopaque)) {
 		file_handle_v3_t *fh = (file_handle_v3_t *)objp->fhandle3_val;
 		fh->exportid = ntohs(fh->exportid);
 	}
@@ -210,8 +212,8 @@ mountres3_ok *objp;
 		return (false);
 	if (!xdr_array
 	    (xdrs, (char **)&objp->auth_flavors.auth_flavors_val,
-	     (u_int *) & objp->auth_flavors.auth_flavors_len, ~0, sizeof(int),
-	     (xdrproc_t) xdr_int))
+	     &objp->auth_flavors.auth_flavors_len, XDR_ARRAY_MAXLEN,
+	     sizeof(int), (xdrproc_t) xdr_int))
 		return (false);
 	return (true);
 }

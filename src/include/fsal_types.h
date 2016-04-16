@@ -92,7 +92,7 @@ struct export_perms {
 	gid_t anonymous_gid;	/* root gid when no root access is available
 				 * gid when access is available but all users
 				 * are being squashed. */
-	uint32_t options;	/* avail. mnt options */
+	uint32_t options;	/* available export options */
 	uint32_t set;		/* Options that have been set */
 };
 
@@ -606,7 +606,7 @@ typedef enum enum_fsal_fsinfo_options {
 } fsal_fsinfo_options_t;
 
 /* The largest maxread and maxwrite value */
-#define FSAL_MAXIOSIZE (64*1024*1024)
+#define FSAL_MAXIOSIZE XDR_BYTES_MAXLEN_IO
 
 typedef struct fsal_staticfsinfo_t {
 	uint64_t maxfilesize;	/*< maximum allowed filesize     */
