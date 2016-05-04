@@ -22,6 +22,8 @@ BuildRequires: openSUSE-release
 Requires: openSUSE-release
 %endif
 
+%define dist .sles12
+
 %global with_systemd 1
 %global with_nfsidmap 1
 %endif
