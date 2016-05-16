@@ -1,0 +1,67 @@
+#!/usr/bin/env python
+
+# This script gets netgroups from NIS server using "ypcat", and expands
+# any nested netgroups to flat netgroups using "getent" command.  The
+# expanded netgroups are written to /etc/netgroup file.
+#
+# This requires mynetgroup.so shared object in /usr/lpp/mmfs/bin
+# directory. See mynetgroup.c file on how to produce mynetgroup.so
+# shared object file.
+#
+# Place this script and mynetgroup.so files in /usr/lpp/mmfs/bin
+# directory, and then use a crontab entry as below to periodically
+# (every 30 minutes) flatten nested netgroups to flat netgroups.
+#
+# "*/30 * * * * /usr/lpp/mmfs/bin/flat-netgr"   OR
+# "0,30 * * * * /usr/lpp/mmfs/bin/flat-netgr"
+
+import sys, os
+from subprocess import Popen, PIPE
+from tempfile import NamedTemporaryFile
+
+def netgroups(iterable):
+    for line in iterable:
+        entry = line.strip()
+        if entry is None or entry.startswith('#'): # blank or comment
+            continue
+        entry = entry.split(None, 1)
+        yield entry[0] # netgroup
+
+def flatten(group):
+    # Force getent to read /etc/netgroup.nested file
+    # instead of /etc/netgroup file using mynetgroup.so
+    # LD_PRELOAD!
+    cmd = "LD_PRELOAD=/usr/lpp/mmfs/bin/mynetgroup.so "
+    cmd += "getent netgroup %s" % group
+    proc = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+    out, err = proc.communicate()
+    if proc.returncode != 0:
+        sys.exit("getent netgroup %s failed: %s" % (group, err))
+    return out
+
+def main():
+    cmd = ["/usr/bin/ypcat", "-k", "netgroup"]
+    # open the file for read/write, truncate if it exists
+    f = open("/etc/netgroup.nested", "w+")
+    proc = Popen(cmd, stdout=f, stderr=PIPE)
+    err = proc.communicate()[1]
+    if proc.returncode != 0:
+        sys.exit("ypcat failed: %s" % err)
+    f.flush()
+    f.seek(0)	# Set up for reading now
+
+    # Create a temp file in /etc for atomic rename later
+    ftemp = NamedTemporaryFile(prefix="netgroupX", dir="/etc", delete=False)
+    try:
+        for group in netgroups(f):
+            out = flatten(group)
+            ftemp.write(out);
+
+        ftemp.flush()
+        os.rename(ftemp.name, "/etc/netgroup")
+    except:
+        os.remove(ftemp.name)
+        raise()
+
+if __name__ == '__main__':
+    main()
