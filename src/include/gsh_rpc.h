@@ -66,7 +66,6 @@ struct nfs_request_lookahead {
 			  NFS_LOOKAHEAD_LAYOUTCOMMIT |	\
 			  NFS_LOOKAHEAD_READDIR)))
 
-void socket_setoptions(int);
 
 typedef struct sockaddr_storage sockaddr_t;
 

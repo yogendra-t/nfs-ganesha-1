@@ -395,7 +395,6 @@ static int _9p_create_socket_V4(void)
 		goto err;
 	}
 
-	socket_setoptions(sock);
 	memset(&sinaddr_tcp, 0, sizeof(sinaddr_tcp));
 	sinaddr_tcp.sin_family = AF_INET;
 
@@ -492,7 +491,6 @@ static int _9p_create_socket_V6(void)
 		goto err;
 	}
 
-	socket_setoptions(sock);
 	memset(&sinaddr_tcp6, 0, sizeof(sinaddr_tcp6));
 	sinaddr_tcp6.sin6_family = AF_INET6;
 	/* All the interfaces on the machine are used */
