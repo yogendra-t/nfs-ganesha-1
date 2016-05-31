@@ -228,8 +228,10 @@ shutdown
 startup
 stop
 start
+check
+releaseip
+takeip
 monitor-list-shares
-monitor-post
 EOF
 }
 
