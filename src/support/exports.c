@@ -1342,6 +1342,8 @@ static int build_default_root(struct config_error_type *err_type)
 	 * Root is allowed
 	 * MD Read Access
 	 * Allow use of default auth types
+	 *
+	 * Allow non-privileged client ports to access pseudo export.
 	 */
 	export->export_perms.options = EXPORT_OPTION_ROOT |
 					EXPORT_OPTION_MD_READ_ACCESS |
@@ -1353,7 +1355,8 @@ static int build_default_root(struct config_error_type *err_type)
 				    EXPORT_OPTION_ACCESS_TYPE |
 				    EXPORT_OPTION_PROTOCOLS |
 				    EXPORT_OPTION_TRANSPORTS |
-				    EXPORT_OPTION_AUTH_TYPES;
+				    EXPORT_OPTION_AUTH_TYPES |
+				    EXPORT_OPTION_PRIVILEGED_PORT;
 
 	export->options = EXPORT_OPTION_USE_COOKIE_VERIFIER;
 	export->options_set = EXPORT_OPTION_FSID_SET |
