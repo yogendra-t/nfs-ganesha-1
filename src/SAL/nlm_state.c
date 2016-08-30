@@ -261,17 +261,6 @@ void dec_nlm_state_ref(state_t *state)
 		str_valid = true;
 	}
 
-	refcount = atomic_dec_int32_t(&state->state_refcount);
-
-	if (refcount > 0) {
-		if (str_valid)
-			LogFullDebug(COMPONENT_STATE,
-				     "Decrement refcount now=%" PRId32 " {%s}",
-				     refcount, str);
-
-		return;
-	}
-
 	if (str_valid)
 		LogFullDebug(COMPONENT_STATE, "Try to remove {%s}", str);
 
@@ -295,16 +284,13 @@ void dec_nlm_state_ref(state_t *state)
 		return;
 	}
 
-	refcount = atomic_fetch_int32_t(&state->state_refcount);
-
+	refcount = atomic_dec_int32_t(&state->state_refcount);
 	if (refcount > 0) {
 		if (str_valid)
-			LogDebug(COMPONENT_STATE,
-				 "Did not release refcount now=%"PRId32" {%s}",
-				 refcount, str);
-
+			LogFullDebug(COMPONENT_STATE,
+				     "Decrement refcount now=%" PRId32 " {%s}",
+				     refcount, str);
 		hashtable_releaselatched(ht_nlm_states, &latch);
-
 		return;
 	}
 
