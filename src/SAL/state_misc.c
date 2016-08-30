@@ -50,6 +50,10 @@
 #include "nfs_core.h"
 #include "sal_functions.h"
 
+struct glist_head cached_open_owners = GLIST_HEAD_INIT(cached_open_owners);
+
+pthread_mutex_t cached_open_owners_lock = PTHREAD_MUTEX_INITIALIZER;
+
 pool_t *state_owner_pool;	/*< Pool for NFSv4 files's open owner */
 
 #ifdef DEBUG_SAL
@@ -1005,28 +1009,11 @@ void dec_state_owner_ref(state_owner_t *owner)
 		return;
 	}
 
-	/*
-	 * NFSv4 Open Owner is cached beyond CLOSE op for lease period
-	 * so that it can be used if the client re-opens the file thus
-	 * avoiding the need to confirm the OPEN. If not re-used, these
-	 * objects will later be cleaned up by the reaper thread.
-	 */
-	if ((owner->so_type == STATE_OPEN_OWNER_NFSV4) &&
-	    (atomic_fetch_time_t(&owner->so_owner.so_nfs4_owner.
-				 last_close_time) == 0)) {
-		atomic_store_time_t(&owner->so_owner.so_nfs4_owner.
-				    last_close_time, time(NULL));
-		LogFullDebug(COMPONENT_STATE,
-			     "Cached open owner {%s}",
-			     str);
-		return;
-	}
-
 	ht_owner = get_state_owner_hash_table(owner);
 
 	if (ht_owner == NULL) {
 		if (!str_valid)
-			display_owner(&dspbuf, owner);
+			display_printf(&dspbuf, "Invalid owner %p", owner);
 
 		LogCrit(COMPONENT_STATE, "Unexpected owner {%s}, type {%d}",
 			str, owner->so_type);
@@ -1050,23 +1037,10 @@ void dec_state_owner_ref(state_owner_t *owner)
 			hashtable_releaselatched(ht_owner, &latch);
 
 		if (!str_valid)
-			display_owner(&dspbuf, owner);
+			display_printf(&dspbuf, "Invalid owner %p", owner);
 
 		LogCrit(COMPONENT_STATE, "Error %s, could not find {%s}",
 			hash_table_err_to_str(rc), str);
-
-		return;
-	}
-
-	refcount = atomic_fetch_int32_t(&owner->so_refcount);
-
-	if (refcount > 0) {
-		if (str_valid)
-			LogDebug(COMPONENT_STATE,
-				 "Did not release {%s} refcount now=%" PRId32,
-				 str, refcount);
-
-		hashtable_releaselatched(ht_owner, &latch);
 
 		return;
 	}
@@ -1082,6 +1056,70 @@ void dec_state_owner_ref(state_owner_t *owner)
 		LogFullDebug(COMPONENT_STATE, "Free {%s}", str);
 
 	free_state_owner(owner);
+}
+
+/** @brief Remove an NFS 4 open owner from the cached owners list.
+ *
+ * The caller MUST hold the cached_open_owners_lock, also must NOT hold
+ * so_mutex as the so_mutex may get destroyed after this call.
+ *
+ * If this owner is being revived, the refcount should have already been
+ * incremented for the new primary reference. This function will release the
+ * refcount that held it in the cache.
+ *
+ * @param[in] nfs4_owner The owner to release.
+ *
+ */
+void uncache_nfs4_owner(struct state_nfs4_owner_t *nfs4_owner)
+{
+	state_owner_t *owner = container_of(nfs4_owner,
+					    state_owner_t,
+					    so_owner.so_nfs4_owner);
+
+	/* This owner is to be removed from the open owner cache:
+	 * 1. Remove it from the list.
+	 * 2. Make sure this is now a proper list head again.
+	 * 3. Indicate it is no longer cached.
+	 * 4. Release the reference held on behalf of the cache.
+	 */
+	if (isFullDebug(COMPONENT_STATE)) {
+		char str[LOG_BUFF_LEN];
+		struct display_buffer dspbuf = {sizeof(str), str, str};
+
+		display_owner(&dspbuf, owner);
+
+		LogFullDebug(COMPONENT_STATE, "Uncache {%s}", str);
+	}
+
+	glist_del(&nfs4_owner->so_state_list);
+
+	glist_init(&nfs4_owner->so_state_list);
+
+	atomic_store_time_t(&nfs4_owner->cache_expire, 0);
+
+	dec_state_owner_ref(owner);
+}
+
+static inline
+void refresh_nfs4_open_owner(struct state_nfs4_owner_t *nfs4_owner)
+{
+	time_t cache_expire;
+
+	/* Since this owner is active, reset cache_expire. */
+	cache_expire = atomic_fetch_time_t(&nfs4_owner->cache_expire);
+
+	if (cache_expire != 0) {
+		PTHREAD_MUTEX_lock(&cached_open_owners_lock);
+
+		/* Check again while holding the mutex. */
+
+		if (atomic_fetch_time_t(&nfs4_owner->cache_expire) != 0) {
+			/* This is a cached open owner, uncache it for use. */
+			uncache_nfs4_owner(nfs4_owner);
+		}
+
+		PTHREAD_MUTEX_unlock(&cached_open_owners_lock);
+	}
 }
 
 /**
@@ -1132,30 +1170,104 @@ state_owner_t *get_state_owner(care_t care, state_owner_t *key,
 	buffkey.addr = key;
 	buffkey.len = sizeof(*key);
 
+ again:
+
 	rc = hashtable_getlatch(ht_owner, &buffkey, &buffval, true, &latch);
 
 	/* If we found it, return it */
 	if (rc == HASHTABLE_SUCCESS) {
+		int32_t refcount;
+
 		owner = buffval.addr;
 
 		/* Return the found NSM Client */
 		if (isFullDebug(COMPONENT_STATE)) {
 			display_owner(&dspbuf, owner);
-			LogFullDebug(COMPONENT_STATE, "Found {%s}", str);
+			str_valid = true;
 		}
 
-		/* Increment refcount under hash latch.
-		 * This prevents dec ref from removing this entry from hash if
-		 * a race occurs.
+		/* Increment refcount under hash latch. This protects against
+		 * a race with dec_state_owner_ref removing the final
+		 * reference. If we have that race however, we defer to
+		 * the other thread and pretend we did NOT find the owner.
 		 */
-		inc_state_owner_ref(owner);
-		atomic_store_time_t(&owner->so_owner.so_nfs4_owner.
-				    last_close_time, 0);
+		refcount = atomic_inc_int32_t(&owner->so_refcount);
+
+		if (refcount == 1) {
+			/* This owner is in the process of being freed.
+			 * If care is not CARE_NOT, we will go back and
+			 * retry, otherwise we will return NULL.
+			 *
+			 * If we care, the retry may cycle a time or two
+			 * until the old owner manages to get out of the
+			 * table, and then if multiple get_state_owner
+			 * calls are racing, one of them will get the
+			 * latch, not find the owner, and create it, the
+			 * rest will then in turn find that new owner.
+			 */
+			if (isDebug(COMPONENT_STATE)) {
+				if (!str_valid) {
+					/* Since we still hold the latch,
+					 * owner MUST still be valid,
+					 * dec_state_owner_ref has not even
+					 * removed from the hash table yet,
+					 * let alone destroyed the object.
+					 */
+					display_owner(&dspbuf, owner);
+				}
+
+				LogDebug(COMPONENT_STATE,
+					 "Found owner in process of deconstruction, will %s {%s}",
+					 care == CARE_NOT
+						? "return NULL (CARE_NOT)"
+						: "retry",
+					 str);
+			}
+
+			/* Drop the reference we just got. */
+			refcount = atomic_dec_int32_t(&owner->so_refcount);
+
+			/* Just for kicks, validate the refcount */
+			if (refcount != 0) {
+				display_owner(&dspbuf, owner);
+				LogCrit(COMPONENT_STATE,
+					"Deconstructed state owner has gained a reference {%s}",
+					str);
+			}
+
+			/* Now drop the hash table latch and try again or exit.
+			 */
+			hashtable_releaselatched(ht_owner, &latch);
+
+			/* If we don't care, return NULL at this point,
+			 * otherwise retry.
+			 */
+			/** @todo should we nanosleep before retry? */
+			if (care == CARE_NOT)
+				return NULL;
+			else
+				goto again;
+		}
+
+		/* Refresh an nfs4 open owner if needed. */
+		if (owner->so_type == STATE_OPEN_OWNER_NFSV4) {
+			refresh_nfs4_open_owner(&owner->so_owner.so_nfs4_owner);
+		}
+
+		if (isFullDebug(COMPONENT_STATE)) {
+			if (!str_valid)
+				display_owner(&dspbuf, owner);
+
+			LogFullDebug(COMPONENT_STATE,
+				     "Found {%s} refcount now=%" PRId32,
+				     str, refcount);
+		}
 
 		hashtable_releaselatched(ht_owner, &latch);
 
 		return owner;
 	}
+
 	/* An error occurred, return NULL */
 	if (rc != HASHTABLE_ERROR_NO_SUCH_KEY) {
 		if (!str_valid)
@@ -1169,7 +1281,6 @@ state_owner_t *get_state_owner(care_t care, state_owner_t *key,
 
 	/* Not found, but we don't care, return NULL */
 	if (care == CARE_NOT) {
-		/* Return the found NSM Client */
 		if (str_valid)
 			LogFullDebug(COMPONENT_STATE, "Ignoring {%s}", str);
 
