@@ -626,15 +626,14 @@ static fsal_status_t handle_digest(const struct fsal_obj_handle *obj_hdl,
 	switch (output_type) {
 	case FSAL_DIGEST_NFSV3:
 	case FSAL_DIGEST_NFSV4:
-		fh_size = gpfs_sizeof_handle(fh);
-		if (fh_desc->len < fh_size)
+		if (fh_desc->len < fh->handle_size)
 			goto errout;
-		memcpy(fh_desc->addr, fh, fh_size);
+		memcpy(fh_desc->addr, fh, fh->handle_size);
 		break;
 	default:
 		return fsalstat(ERR_FSAL_SERVERFAULT, 0);
 	}
-	fh_desc->len = fh_size;
+	fh_desc->len = fh->handle_size;
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 
  errout:

@@ -347,21 +347,29 @@ static fsal_status_t gpfs_extract_handle(struct fsal_export *exp_hdl,
 					 struct gsh_buffdesc *fh_desc)
 {
 	struct gpfs_file_handle *hdl;
-	size_t fh_size = 0;
 
 	/* sanity checks */
 	if (!fh_desc || !fh_desc->addr)
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
 	hdl = (struct gpfs_file_handle *)fh_desc->addr;
-	fh_size = gpfs_sizeof_handle(hdl);
-	if (fh_desc->len != fh_size) {
+
+	/* handle_size already includes the header size. Some older
+	 * versions included header size of 16 bytes again. Honor those
+	 * older file handles as well.
+	 */
+	if (fh_desc->len != hdl->handle_size &&
+	    fh_desc->len != hdl->handle_size + 16) {
 		LogMajor(COMPONENT_FSAL,
 			 "Size mismatch for handle.  should be %lu, got %lu",
-			 fh_size, fh_desc->len);
+			 hdl->handle_size, fh_desc->len);
 		return fsalstat(ERR_FSAL_SERVERFAULT, 0);
 	}
-	fh_desc->len = hdl->handle_key_size;	/* pass back the key size */
+
+	/* Only handle_key_size should be used for comparing objects, so
+	 * pass the handle_key_size.
+	 */
+	fh_desc->len = hdl->handle_key_size;
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
