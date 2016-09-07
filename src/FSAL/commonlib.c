@@ -1474,9 +1474,6 @@ int claim_posix_filesystems(const char *path,
 
 	/* Check if we found a filesystem */
 	if (root == NULL) {
-		LogCrit(COMPONENT_FSAL,
-			"No file system for export path %s",
-			path);
 		retval = ENOENT;
 		goto out;
 	}
