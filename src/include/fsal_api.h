@@ -919,12 +919,14 @@ struct export_ops {
  * @param[in]  exp_hdl    The export to interrogate
  * @param[in]  filepath   The path within the export to check
  * @param[in]  quota_type Whether we are checking inodes or blocks
+ * @param[in]  quota_id   Id for which quota is set
  * @param[out] quota      The user's quota
  *
  * @return FSAL types.
  */
 	 fsal_status_t (*get_quota)(struct fsal_export *exp_hdl,
 				    const char *filepath, int quota_type,
+				    int quota_id,
 				    fsal_quota_t *quota);
 
 /**
@@ -935,6 +937,7 @@ struct export_ops {
  * @param[in]  exp_hdl    The export to interrogate
  * @param[in]  filepath   The path within the export to check
  * @param[in]  quota_type Whether we are checking inodes or blocks
+ * @param[in]  quota_id   Id for which quota is set
  * @param[in]  quota      The values to set for the quota
  * @param[out] resquota   New values set (optional)
  *
@@ -942,6 +945,7 @@ struct export_ops {
  */
 	 fsal_status_t (*set_quota)(struct fsal_export *exp_hdl,
 				    const char *filepath, int quota_type,
+				    int quota_id,
 				    fsal_quota_t *quota,
 				    fsal_quota_t *resquota);
 /**@}*/

@@ -424,6 +424,7 @@ static fsal_status_t check_quota(struct fsal_export *exp_hdl,
 
 static fsal_status_t get_quota(struct fsal_export *exp_hdl,
 			       const char *filepath, int quota_type,
+			       int quota_id,
 			       fsal_quota_t *pquota)
 {
 	return fsalstat(ERR_FSAL_NOTSUPP, 0);
@@ -435,6 +436,7 @@ static fsal_status_t get_quota(struct fsal_export *exp_hdl,
 
 static fsal_status_t set_quota(struct fsal_export *exp_hdl,
 			       const char *filepath, int quota_type,
+			       int quota_id,
 			       fsal_quota_t *pquota, fsal_quota_t *presquota)
 {
 	return fsalstat(ERR_FSAL_NOTSUPP, 0);
