@@ -257,6 +257,7 @@ int nfs3_mknod(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 
 		cache_status = cache_inode_setattr(node_entry,
 						   &sattr,
+						   true,
 						   false);
 
 		if (cache_status != CACHE_INODE_SUCCESS)

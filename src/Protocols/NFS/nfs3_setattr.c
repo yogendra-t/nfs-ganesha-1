@@ -166,6 +166,7 @@ int nfs3_setattr(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 
 		cache_status = cache_inode_setattr(entry,
 						   &setattr,
+						   false,
 						   false);
 
 		if (arg->arg_setattr3.new_attributes.size.set_it)
