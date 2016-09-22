@@ -178,7 +178,7 @@ int _9p_setattr(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 
 	/* Now set the attr */
 	cache_status =
-	    cache_inode_setattr(pfid->pentry, &fsalattr, false);
+	    cache_inode_setattr(pfid->pentry, &fsalattr, false, false);
 	if (cache_status != CACHE_INODE_SUCCESS)
 		return _9p_rerror(req9p, msgtag,
 				  _9p_tools_errno(cache_status), plenout,

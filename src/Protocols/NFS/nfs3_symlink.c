@@ -181,6 +181,7 @@ int nfs3_symlink(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		/* A call to cache_inode_setattr is required */
 		cache_status = cache_inode_setattr(symlink_entry,
 						   &sattr,
+						   false,
 						   false);
 
 		if (cache_status != CACHE_INODE_SUCCESS)
