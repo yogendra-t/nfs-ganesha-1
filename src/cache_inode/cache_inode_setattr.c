@@ -52,12 +52,14 @@
  *
  * @param[in]     entry   Entry whose attributes are to be set
  * @param[in,out] attr    Attributes to set/result of set
+ * @param[in]     is_create True if called as part of a create
  *
  * @retval CACHE_INODE_SUCCESS if operation is a success
  */
 cache_inode_status_t
 cache_inode_setattr(cache_entry_t *entry,
 		    struct attrlist *attr,
+		    bool is_create,
 		    bool is_open_write)
 {
 	struct fsal_obj_handle *obj_handle = entry->obj_handle;
@@ -163,6 +165,15 @@ cache_inode_setattr(cache_entry_t *entry,
 	    not_in_group_list(entry->obj_handle->attributes.group)) {
 		/* Clear S_ISGID */
 		attr->mode &= ~S_ISGID;
+	}
+
+	/* Setting uid/gid works only for root. AIX or Irix NFS clients send 
+  	 * gid on create if the parent directory has setgid bit. 
+  	 * Clear the OWNER and GROUP attributes for create requests for 
+  	 * non-root users.
+  	 */
+	if (is_create && creds->caller_uid != 0) {
+	    attr->mask &= ~ (ATTR_OWNER | ATTR_GROUP); 
 	}
 
 	saved_acl = obj_handle->attributes.acl;

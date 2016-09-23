@@ -230,6 +230,7 @@ int nfs3_create(nfs_arg_t *arg,
 			/* A call to cache_inode_setattr is required */
 			cache_status = cache_inode_setattr(file_entry,
 							   &sattr,
+							   true,
 							   false);
 
 			if (cache_status != CACHE_INODE_SUCCESS)

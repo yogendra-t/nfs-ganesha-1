@@ -169,6 +169,7 @@ int nfs3_setattr(nfs_arg_t *arg,
 
 		cache_status = cache_inode_setattr(entry,
 						   &setattr,
+						   false,
 						   false);
 
 		if (arg->arg_setattr3.new_attributes.size.set_it)

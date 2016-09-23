@@ -800,6 +800,7 @@ static nfsstat4 open4_create(OPEN4args *arg, compound_data_t *data,
 
 			cache_status =
 			    cache_inode_setattr(entry_newfile, &sattr,
+					(arg->openhow.opentype == OPEN4_CREATE),
 					(arg->share_access &
 					 OPEN4_SHARE_ACCESS_WRITE) != 0);
 

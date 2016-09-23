@@ -801,6 +801,7 @@ cache_inode_status_t cache_inode_rename(cache_entry_t *entry,
 
 cache_inode_status_t cache_inode_setattr(cache_entry_t *entry,
 					 struct attrlist *attr,
+					 bool is_create,
 					 bool is_open_write);
 
 cache_inode_status_t cache_inode_error_convert(fsal_status_t fsal_status);
