@@ -315,11 +315,17 @@ bool client_id_has_state(nfs_client_id_t *clientid)
 
 void free_client_id(nfs_client_id_t *clientid)
 {
+	struct svc_rpc_gss_data *gd;
+
 	assert(atomic_fetch_int32_t(&clientid->cid_refcount) == 0);
 
 	if (clientid->cid_client_record != NULL)
 		dec_client_record_ref(clientid->cid_client_record);
 
+	if (clientid->cid_credential.flavor == RPCSEC_GSS) {
+		gd = clientid->cid_credential.auth_union.auth_gss.gd;
+		unref_svc_rpc_gss_data(gd, 0);
+	}
 	/* For NFSv4.1 clientids, destroy all associated sessions */
 	if (clientid->cid_minorversion > 0) {
 		struct glist_head *glist = NULL;
@@ -519,6 +525,7 @@ nfs_client_id_t *create_client_id(clientid4 clientid,
 {
 	nfs_client_id_t *client_rec = pool_alloc(client_id_pool, NULL);
 	state_owner_t *owner;
+	struct svc_rpc_gss_data *gd;
 
 	if (client_rec == NULL) {
 		LogCrit(COMPONENT_CLIENTID,
@@ -548,6 +555,13 @@ nfs_client_id_t *create_client_id(clientid4 clientid,
 	client_rec->cid_last_renew = time(NULL);
 	client_rec->cid_client_record = client_record;
 	client_rec->cid_credential = *credential;
+
+	/* */
+	if (credential->flavor == RPCSEC_GSS) {
+		gd = credential->auth_union.auth_gss.gd;
+		(void)atomic_inc_uint32_t(&gd->refcnt);
+	}
+
 	client_rec->cid_minorversion = minorversion;
 	client_rec->gsh_client = op_ctx->client;
 	inc_gsh_client_refcount(op_ctx->client);
