@@ -553,7 +553,6 @@ typedef uint16_t fsal_openflags_t;
 						     * explicitly or'd together
 						     * so that FSAL_O_RDWR can
 						     * be used as a mask */
-#define FSAL_O_SYNC     0x0004	/* sync */
 #define FSAL_O_RECLAIM  0x0008	/* open reclaim */
 
 /** File system static info. */
