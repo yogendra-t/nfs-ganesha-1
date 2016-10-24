@@ -183,6 +183,8 @@ void clean_mapping(cache_entry_t *entry)
 	atomic_store_voidptr(&entry->first_export, NULL);
 
 	PTHREAD_RWLOCK_unlock(&entry->attr_lock);
+
+	cih_remove_checked(entry);
 }
 
 /**
