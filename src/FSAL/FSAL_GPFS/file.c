@@ -396,7 +396,6 @@ fsal_status_t gpfs_commit(struct fsal_obj_handle *obj_hdl,	/* sync */
 			LogFatal(COMPONENT_FSAL, "GPFS Returned EUNATCH");
 		fsal_error = posix2fsal_error(retval);
 	}
-	set_gpfs_verifier(&writeverf);
 
 	return fsalstat(fsal_error, retval);
 }
