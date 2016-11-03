@@ -386,18 +386,6 @@ static fsal_status_t gpfs_extract_handle(struct fsal_export *exp_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-verifier4 GPFS_write_verifier;	/* NFS V4 write verifier */
-
-static void gpfs_verifier(struct gsh_buffdesc *verf_desc)
-{
-	memcpy(verf_desc->addr, &GPFS_write_verifier, verf_desc->len);
-}
-
-void set_gpfs_verifier(verifier4 *verifier)
-{
-	memcpy(&GPFS_write_verifier, verifier, sizeof(verifier4));
-}
-
 /* gpfs_export_ops_init
  * overwrite vector entries with the methods that we support
  */
@@ -423,7 +411,6 @@ void gpfs_export_ops_init(struct export_ops *ops)
 	ops->fs_xattr_access_rights = fs_xattr_access_rights;
 	ops->get_quota = get_quota;
 	ops->set_quota = set_quota;
-	ops->get_write_verifier = gpfs_verifier;
 }
 
 void free_gpfs_filesystem(struct gpfs_filesystem *gpfs_fs)
@@ -716,9 +703,7 @@ fsal_status_t gpfs_create_export(struct fsal_module *fsal_hdl,
 	/* The status code to return */
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 	struct gpfs_fsal_export *myself;
-	struct readlink_arg varg;
 	struct gpfs_filesystem *gpfs_fs;
-	int rc;
 
 	myself = gsh_malloc(sizeof(struct gpfs_fsal_export));
 	if (myself == NULL) {
@@ -768,15 +753,6 @@ fsal_status_t gpfs_create_export(struct fsal_module *fsal_hdl,
 	}
 
 	op_ctx->fsal_export = &myself->export;
-
-	gpfs_ganesha(OPENHANDLE_GET_VERIFIER, &GPFS_write_verifier);
-	gpfs_fs = myself->root_fs->private;
-	varg.fd = gpfs_fs->root_fd;
-	varg.buffer = (char *)&GPFS_write_verifier;
-	rc = gpfs_ganesha(OPENHANDLE_GET_VERIFIER, &varg);
-	if (rc != 0)
-		LogCrit(COMPONENT_FSAL,
-		    "OPENHANDLE_GET_VERIFIER failed with rc = %d", rc);
 
 	/* if the nodeid has not been obtained, get it now */
 	if (!g_nodeid) {
