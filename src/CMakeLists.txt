@@ -1428,6 +1428,11 @@ configure_file(
   "${PROJECT_SOURCE_DIR}/scripts/systemd/nfs-ganesha-config.service"
 )
 
+configure_file(
+  "${PROJECT_SOURCE_DIR}/scripts/systemd/sysconfig/nfs-ganesha-in.cmake"
+  "${PROJECT_SOURCE_DIR}/scripts/systemd/sysconfig/nfs-ganesha"
+)
+
 add_custom_target( rpm DEPENDS dist)
 add_custom_command(TARGET rpm
                   COMMAND sh -c "rpmbuild -ta ${PKG_NAME}"
