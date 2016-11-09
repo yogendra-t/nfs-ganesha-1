@@ -84,8 +84,16 @@ int cache_inode_avl_qp_insert(cache_entry_t *entry,
 #define CACHE_INODE_FLAG_NEXT_ACTIVE 0x0001
 #define CACHE_INODE_FLAG_ONLY_ACTIVE 0x0002
 
-cache_inode_dir_entry_t *cache_inode_avl_lookup_k(cache_entry_t *entry,
-						  uint64_t k, uint32_t flags);
+enum cache_inode_avl_err {
+	CACHE_INODE_AVL_NO_ERROR = 0,	/*< Entry was found */
+	CACHE_INODE_AVL_NOT_FOUND,	/*< Entry was not found */
+	CACHE_INODE_AVL_LAST,		/*< Requested next, but was last */
+	CACHE_INODE_AVL_DELETED,	/*< Entry was deleted */
+};
+
+enum cache_inode_avl_err cache_inode_avl_lookup_k(cache_entry_t *entry,
+					uint64_t k, uint32_t flags,
+					cache_inode_dir_entry_t **dirent);
 cache_inode_dir_entry_t *cache_inode_avl_qp_lookup_s(cache_entry_t *entry,
 						     const char *name,
 						     int maxj);

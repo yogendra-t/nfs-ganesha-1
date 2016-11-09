@@ -576,7 +576,7 @@ cache_inode_readdir(cache_entry_t *directory,
 	/* The entry being examined */
 	cache_inode_dir_entry_t *dirent = NULL;
 	/* The node in the tree being traversed */
-	struct avltree_node *dirent_node;
+	struct avltree_node *dirent_node = NULL;
 	/* The access mask corresponding to permission to list directory
 	   entries */
 	fsal_accessflags_t access_mask =
@@ -672,6 +672,8 @@ cache_inode_readdir(cache_entry_t *directory,
 	 * 5. cookie is in cached range -- ok */
 
 	if (cookie > 0) {
+		enum cache_inode_avl_err aerr;
+
 		/* N.B., cache_inode_avl_qp_insert_s ensures k > 2 */
 		if (cookie < 3) {
 			status = CACHE_INODE_BAD_COOKIE;
@@ -681,34 +683,32 @@ cache_inode_readdir(cache_entry_t *directory,
 		}
 
 		/* we assert this can now succeed */
-		dirent =
+		aerr =
 		    cache_inode_avl_lookup_k(directory, cookie,
-					     CACHE_INODE_FLAG_NEXT_ACTIVE);
-		if (!dirent) {
-			/* Linux (3.4, etc) has been observed to send readdir
-			 * at the offset of the last entry's cookie, and
-			 * returns no dirents to userland if that readdir
-			 * notfound or badcookie. */
-			if (cache_inode_avl_lookup_k
-			    (directory, cookie, CACHE_INODE_FLAG_NONE)) {
-				/* yup, it was the last entry */
-				LogFullDebug(COMPONENT_NFS_READDIR,
-					     "EOD because empty result");
-				*nbfound = 0;
-				*eod_met = true;
-				goto unlock_dir;
-			}
+					     CACHE_INODE_FLAG_NEXT_ACTIVE,
+					     &dirent);
+		switch (aerr) {
+		case CACHE_INODE_AVL_NOT_FOUND:
 			LogFullDebug(COMPONENT_NFS_READDIR,
 				     "seek to cookie=%" PRIu64 " fail",
 				     cookie);
 			status = CACHE_INODE_BAD_COOKIE;
 			goto unlock_dir;
+		case CACHE_INODE_AVL_LAST:
+		case CACHE_INODE_AVL_DELETED:
+			/* dirent was last, or all dirents after this one are
+			 * deleted */
+			LogFullDebug(COMPONENT_NFS_READDIR,
+				     "EOD because empty result");
+			*nbfound = 0;
+			*eod_met = true;
+			status = CACHE_INODE_NOT_FOUND;
+			goto unlock_dir;
+		case CACHE_INODE_AVL_NO_ERROR:
+			assert(dirent);
+			dirent_node = &dirent->node_hk;
+			break;
 		}
-
-		/* dirent is the NEXT entry to return, since we sent
-		 * CACHE_INODE_FLAG_NEXT_ACTIVE */
-		dirent_node = &dirent->node_hk;
-
 	} else {
 		/* initial readdir */
 		dirent_node = avltree_first(&directory->object.dir.avl.t);
