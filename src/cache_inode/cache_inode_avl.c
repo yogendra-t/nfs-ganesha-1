@@ -257,7 +257,7 @@ cache_inode_avl_qp_insert(cache_entry_t *entry,
 						  CACHE_INODE_FLAG_ONLY_ACTIVE);
 			assert(v != v2);
 			if (v2 && (strcmp(v->name, v2->name) == 0)) {
-				LogCrit(COMPONENT_CACHE_INODE,
+				LogDebug(COMPONENT_CACHE_INODE,
 					"cache_inode_avl_qp_insert_s: name conflict (%s, %s)",
 					v->name, v2->name);
 				return -2;
