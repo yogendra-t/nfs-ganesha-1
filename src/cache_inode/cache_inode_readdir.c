@@ -702,7 +702,6 @@ cache_inode_readdir(cache_entry_t *directory,
 				     "EOD because empty result");
 			*nbfound = 0;
 			*eod_met = true;
-			status = CACHE_INODE_NOT_FOUND;
 			goto unlock_dir;
 		case CACHE_INODE_AVL_NO_ERROR:
 			assert(dirent);
