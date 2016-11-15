@@ -543,7 +543,7 @@ killall -SIGHUP dbus-daemon 2>&1 > /dev/null
 %{_includedir}/ntirpc/
 %endif
 %config %{_sysconfdir}/dbus-1/system.d/org.ganesha.nfsd.conf
-%config(noreplace) %{_sysconfdir}/sysconfig/ganesha
+%config %{_sysconfdir}/sysconfig/ganesha
 %config(noreplace) %{_sysconfdir}/logrotate.d/ganesha
 %dir %{_sysconfdir}/ganesha/
 %config(noreplace) %{_sysconfdir}/ganesha/ganesha.conf
