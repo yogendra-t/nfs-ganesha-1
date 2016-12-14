@@ -209,7 +209,7 @@ start() {
 		which ctdb &> /dev/null
 		if [ $? -eq 0 ]; then
 			prev_cntr=0
-			[ -f $EPOCHFILE ] && prev_cntr=$(cat $EPOCHFILE)
+			[ -f $EPOCHFILE ] && read prev_cntr _ < $EPOCHFILE
 			[ -z $prev_cntr ] && prev_cntr=0
 			new_cntr=$(( prev_cntr + 1 ))
 			#Epoch = (ctdb node number << 16) | (new_cntr & 0xFFFF)
