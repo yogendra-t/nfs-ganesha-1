@@ -160,6 +160,7 @@ Requires(postun): systemd
 %else
 BuildRequires:	initscripts
 %endif
+Requires(post): psmisc
 
 # Use CMake variables
 
