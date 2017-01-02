@@ -1129,13 +1129,9 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 		/* again: */
 		ov = TAILQ_FIRST(&drc->dupreq_q);
 		if (likely(ov)) {
-			/* finished request count against retwnd */
-			drc_dec_retwnd(drc);
-			/* Quick check without partition lock */
-			if (ov->refcnt > 0) {
-				/* ov still in use, apparently */
+			/* quick check without partition lock */
+			if (unlikely(ov->refcnt > 0))
 				goto unlock;
-			}
 
 			/* remove dict entry */
 			t = rbtx_partition_of_scalar(&drc->xt, ov->hk);
@@ -1158,7 +1154,7 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 			/* Make sure that we are removing the entry we
 			 * expected (imperfect, but harmless).
 			 */
-			if (ov->hk != ov_hk) {
+			if (ov == NULL || ov->hk != ov_hk) {
 				PTHREAD_MUTEX_unlock(&t->mtx);
 				goto unlock;
 			}
