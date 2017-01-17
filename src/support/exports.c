@@ -1198,14 +1198,18 @@ static struct config_item export_params[] = {
 		       gsh_export, fullpath), /* must chomp '/' */
 	CONF_UNIQ_PATH("Pseudo", 1, MAXPATHLEN, NULL,
 		       gsh_export, pseudopath),
-	CONF_ITEM_UI64("MaxRead", 512, FSAL_MAXIOSIZE, FSAL_MAXIOSIZE,
-		       gsh_export, MaxRead),
-	CONF_ITEM_UI64("MaxWrite", 512, FSAL_MAXIOSIZE, FSAL_MAXIOSIZE,
-		       gsh_export, MaxWrite),
-	CONF_ITEM_UI64("PrefRead", 512, FSAL_MAXIOSIZE, FSAL_MAXIOSIZE,
-		       gsh_export, PrefRead),
-	CONF_ITEM_UI64("PrefWrite", 512, FSAL_MAXIOSIZE, FSAL_MAXIOSIZE,
-		       gsh_export, PrefWrite),
+	CONF_ITEM_UI64_SET("MaxRead", 512, FSAL_MAXIOSIZE,
+			FSAL_MAXIOSIZE, gsh_export, MaxRead,
+			EXPORT_OPTION_MAXREAD_SET, options_set),
+	CONF_ITEM_UI64_SET("MaxWrite", 512, FSAL_MAXIOSIZE,
+			FSAL_MAXIOSIZE, gsh_export, MaxWrite,
+			EXPORT_OPTION_MAXWRITE_SET, options_set),
+	CONF_ITEM_UI64_SET("PrefRead", 512, FSAL_MAXIOSIZE,
+			FSAL_MAXIOSIZE, gsh_export, PrefRead,
+			EXPORT_OPTION_PREFREAD_SET, options_set),
+	CONF_ITEM_UI64_SET("PrefWrite", 512, FSAL_MAXIOSIZE,
+			FSAL_MAXIOSIZE, gsh_export, PrefWrite,
+			EXPORT_OPTION_PREFWRITE_SET, options_set),
 	CONF_ITEM_UI64("PrefReaddir", 512, FSAL_MAXIOSIZE, 16384,
 		       gsh_export, PrefReaddir),
 	CONF_ITEM_FSID_SET("Filesystem_id", 666, 666,
@@ -1379,7 +1383,11 @@ static int build_default_root(struct config_error_type *err_type)
 
 	export->options = EXPORT_OPTION_USE_COOKIE_VERIFIER;
 	export->options_set = EXPORT_OPTION_FSID_SET |
-			      EXPORT_OPTION_USE_COOKIE_VERIFIER;
+			      EXPORT_OPTION_USE_COOKIE_VERIFIER |
+			      EXPORT_OPTION_MAXREAD_SET |
+			      EXPORT_OPTION_MAXWRITE_SET |
+			      EXPORT_OPTION_PREFREAD_SET |
+			      EXPORT_OPTION_PREFWRITE_SET;
 
 	/* Set the fullpath to "/" */
 	export->fullpath = gsh_strdup("/");
@@ -1587,6 +1595,52 @@ cache_inode_status_t nfs_export_get_root_entry(struct gsh_export *export,
 }
 
 /**
+ * @brief Set file systems max read write sizes in the export
+ *
+ * @param export [IN] the export
+ * @param maxread [IN] maxread size
+ * @param maxwrite [IN] maxwrite size
+ */
+
+static void set_fs_max_rdwr_size(struct gsh_export *export, uint64_t maxread,
+				 uint64_t maxwrite)
+{
+	if (maxread != 0) {
+		if (((export->options_set & EXPORT_OPTION_MAXREAD_SET) == 0)) {
+			LogInfo(COMPONENT_EXPORT,
+				"Readjusting MaxRead to %" PRIu64,
+				maxread);
+			export->MaxRead = maxread;
+		}
+
+		if (((export->options_set & EXPORT_OPTION_PREFREAD_SET) == 0) ||
+		    (export->PrefRead > export->MaxRead)) {
+			LogInfo(COMPONENT_EXPORT,
+				"Readjusting PrefRead to %"PRIu64,
+				export->MaxRead);
+			export->PrefRead = export->MaxRead;
+		}
+	}
+
+	if (maxwrite != 0) {
+		if (((export->options_set & EXPORT_OPTION_MAXWRITE_SET) == 0)) {
+			LogInfo(COMPONENT_EXPORT,
+				"Readjusting MaxWrite to %"PRIu64,
+				maxwrite);
+			export->MaxWrite = maxwrite;
+		}
+
+		if (((export->options_set & EXPORT_OPTION_PREFWRITE_SET) == 0)
+		    || (export->PrefWrite > export->MaxWrite)) {
+			LogInfo(COMPONENT_EXPORT,
+				"Readjusting PrefWrite to %"PRIu64,
+				export->MaxWrite);
+			export->PrefWrite = export->MaxWrite;
+		}
+	}
+}
+
+/**
  * @brief Initialize the root cache inode for an export.
  *
  * Assumes being called with the export_by_id.lock held.
@@ -1626,6 +1680,26 @@ int init_export_root(struct gsh_export *export)
 			export->export_id, export->fullpath,
 			msg_fsal_err(fsal_status.major), fsal_status.minor);
 		goto out;
+	}
+
+	if (((export->options_set & EXPORT_OPTION_MAXREAD_SET) == 0) ||
+	    ((export->options_set & EXPORT_OPTION_MAXWRITE_SET) == 0) ||
+	    ((export->options_set & EXPORT_OPTION_PREFREAD_SET) == 0) ||
+	    ((export->options_set & EXPORT_OPTION_PREFWRITE_SET) == 0)) {
+
+		fsal_dynamicfsinfo_t dynamicinfo;
+
+		dynamicinfo.maxread = 0;
+		dynamicinfo.maxwrite = 0;
+		fsal_status =
+			export->fsal_export->exp_ops.get_fs_dynamic_info(
+				export->fsal_export, root_handle, &dynamicinfo);
+
+		if (!FSAL_IS_ERROR(fsal_status)) {
+			set_fs_max_rdwr_size(export,
+					     dynamicinfo.maxread,
+					     dynamicinfo.maxwrite);
+		}
 	}
 
 	/* Add this entry to the Cache Inode as a "root" entry */
