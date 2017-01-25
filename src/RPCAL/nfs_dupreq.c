@@ -53,6 +53,8 @@
 #define DUPREQ_BAD_ADDR1 0x01	/* safe for marked pointers, etc */
 #define DUPREQ_NOCACHE   0x02
 
+#define DUPREQ_MAX_RETRIES 5
+
 pool_t *nfs_res_pool;
 pool_t *tcp_drc_pool;		/* pool of per-connection DRC objects */
 
@@ -852,6 +854,13 @@ static inline void nfs_dupreq_free_dupreq(dupreq_entry_t *dv)
 {
 	const nfs_function_desc_t *func;
 
+	assert(dv->refcnt == 0);
+
+	LogDebug(COMPONENT_DUPREQ,
+		 "freeing dupreq entry dv=%p, dv xid=%" PRIu32
+		 " cksum %" PRIu64 " state=%s",
+		 dv, dv->hin.tcp.rq_xid, dv->hk,
+		 dupreq_state_table[dv->state]);
 	if (dv->res) {
 		func = nfs_dupreq_func(dv);
 		func->free_function(dv->res);
@@ -859,6 +868,33 @@ static inline void nfs_dupreq_free_dupreq(dupreq_entry_t *dv)
 	}
 	PTHREAD_MUTEX_destroy(&dv->mtx);
 	pool_free(dupreq_pool, dv);
+}
+
+/**
+ * @brief get a ref count on dupreq_entry_t
+ */
+static inline void dupreq_entry_get(dupreq_entry_t *dv)
+{
+	(void)atomic_inc_uint32_t(&dv->refcnt);
+}
+
+/**
+ * @brief release a ref count on dupreq_entry_t
+ *
+ * The caller must not access dv any more after this call as it could be
+ * freed here.
+ */
+static inline void dupreq_entry_put(dupreq_entry_t *dv)
+{
+	int32_t refcnt;
+
+	refcnt = atomic_dec_uint32_t(&dv->refcnt);
+
+	/* If ref count is zero, no one should be accessing it other
+	 * than us.  so no lock is needed.
+	 */
+	if (refcnt == 0)
+		nfs_dupreq_free_dupreq(dv);
 }
 
 /**
@@ -1046,7 +1082,7 @@ dupreq_status_t nfs_dupreq_start(nfs_request_data_t *nfs_req,
 				req->rq_u1 = dv;
 				nfs_req->res_nfs = req->rq_u2 = dv->res;
 				status = DUPREQ_EXISTS;
-				(dv->refcnt)++;
+				dupreq_entry_get(dv);
 			}
 			PTHREAD_MUTEX_unlock(&dv->mtx);
 
@@ -1069,7 +1105,11 @@ dupreq_status_t nfs_dupreq_start(nfs_request_data_t *nfs_req,
 			/* cache--can exceed drc->maxsize */
 			(void)rbtree_x_cached_insert(&drc->xt, t,
 						&dk->rbt_k, dk->hk);
-			dk->refcnt = 1;
+
+			/* dupreq ref count starts with 2; one for the caller
+			 * and another for staying in the hash table.
+			 */
+			dk->refcnt = 2;
 
 			/* add to q tail */
 			PTHREAD_MUTEX_lock(&drc->mtx);
@@ -1129,6 +1169,7 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 	dupreq_status_t status = DUPREQ_SUCCESS;
 	struct rbtree_x_part *t;
 	drc_t *drc = NULL;
+	int16_t cnt = 0;
 
 	/* do nothing if req is marked no-cache */
 	if (dv == (void *)DUPREQ_NOCACHE)
@@ -1156,14 +1197,11 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 
 	/* ok, do the new retwnd calculation here.  then, put drc only if
 	 * we retire an entry */
+dq_again:
 	if (drc_should_retire(drc)) {
 		/* again: */
 		ov = TAILQ_FIRST(&drc->dupreq_q);
 		if (likely(ov)) {
-			/* quick check without partition lock */
-			if (unlikely(ov->refcnt > 0))
-				goto unlock;
-
 			/* remove dict entry */
 			t = rbtx_partition_of_scalar(&drc->xt, ov->hk);
 			uint64_t ov_hk = ov->hk;
@@ -1190,17 +1228,6 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 				goto unlock;
 			}
 
-			/* check refcnt again under partition lock.
-			 * nfs_dupreq_start() could use a 0 refcnt
-			 * dupreq and reference it.
-			 */
-			PTHREAD_MUTEX_lock(&ov->mtx);
-			if (ov->refcnt > 0) {
-				PTHREAD_MUTEX_unlock(&ov->mtx);
-				PTHREAD_MUTEX_unlock(&t->mtx);
-				goto unlock;
-			}
-
 			/* remove q entry */
 			TAILQ_REMOVE(&drc->dupreq_q, ov, fifo_q);
 			--(drc->size);
@@ -1210,12 +1237,6 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 
 			rbtree_x_cached_remove(&drc->xt, t, &ov->rbt_k, ov->hk);
 
-			/* dupreq is out of the hash table. Its refcnt
-			 * is zero and we hold the mutex, so no one else
-			 * should be accessing it now.
-			 */
-			PTHREAD_MUTEX_unlock(&ov->mtx);
-
 			PTHREAD_MUTEX_unlock(&t->mtx);
 
 			LogDebug(COMPONENT_DUPREQ,
@@ -1224,8 +1245,14 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 				 ov->hin.drc, dupreq_state_table[dv->state],
 				 dupreq_status_table[status], ov->refcnt);
 
-			/* deep free ov */
-			nfs_dupreq_free_dupreq(ov);
+			/* release hashtable ref count */
+			dupreq_entry_put(ov);
+
+			/* conditionally retire another */
+			if (cnt++ < DUPREQ_MAX_RETRIES) {
+				PTHREAD_MUTEX_lock(&drc->mtx);
+				goto dq_again; /* calls drc_should_retire() */
+			}
 			goto out;
 		}
 	}
@@ -1284,19 +1311,19 @@ dupreq_status_t nfs_dupreq_delete(struct svc_req *req)
 
 	PTHREAD_MUTEX_lock(&t->mtx);
 	rbtree_x_cached_remove(&drc->xt, t, &dv->rbt_k, dv->hk);
-
 	PTHREAD_MUTEX_unlock(&t->mtx);
+
 	PTHREAD_MUTEX_lock(&drc->mtx);
 
-	/* @todo: Do we need the enqueue check ? */
-	if (TAILQ_IS_ENQUEUED(dv, fifo_q)) {
-		TAILQ_REMOVE(&drc->dupreq_q, dv, fifo_q);
-		--(drc->size);
-	}
+	TAILQ_REMOVE(&drc->dupreq_q, dv, fifo_q);
+	--(drc->size);
 
-	/* release dv's ref and unlock */
+	/* release dv's ref on drc and unlock */
 	nfs_dupreq_put_drc(req->rq_xprt, drc, DRC_FLAG_LOCKED);
 	/* !LOCKED */
+
+	/* we removed the dupreq from hashtable, release a ref */
+	dupreq_entry_put(dv);
 
  out:
 	return status;
@@ -1307,10 +1334,6 @@ dupreq_status_t nfs_dupreq_delete(struct svc_req *req)
  *
  * We assert req->rq_u1 now points to the corresonding duplicate request
  * cache entry (dv).
- *
- * In the common case, a refcnt of 0 indicates that dv is cached.  If
- * also dv->state == DUPREQ_DELETED, the request entry has been discarded
- * and should be destroyed here.
  *
  * @param[in] req  The svc_req structure.
  * @param[in] func The function descriptor for this request type
@@ -1328,23 +1351,12 @@ void nfs_dupreq_rele(struct svc_req *req, const nfs_function_desc_t *func)
 		goto out;
 	}
 
-	PTHREAD_MUTEX_lock(&dv->mtx);
-
 	LogFullDebug(COMPONENT_DUPREQ,
 		     "releasing dv=%p xid=%u on DRC=%p state=%s, " "refcnt=%d",
 		     dv, dv->hin.tcp.rq_xid, dv->hin.drc,
 		     dupreq_state_table[dv->state], dv->refcnt);
 
-	(dv->refcnt)--;
-	if (dv->refcnt == 0) {
-		if (dv->state == DUPREQ_DELETED) {
-			PTHREAD_MUTEX_unlock(&dv->mtx);
-			/* deep free */
-			nfs_dupreq_free_dupreq(dv);
-			return;
-		}
-	}
-	PTHREAD_MUTEX_unlock(&dv->mtx);
+	dupreq_entry_put(dv);
 
  out:
 	/* dispose RPC header */
