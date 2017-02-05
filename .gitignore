@@ -48,3 +48,4 @@ Doxyfile
 .project
 .checkpatch.conf
 src/scripts/systemd/nfs-ganesha-config.service
+src/scripts/systemd/sysconfig/nfs-ganesha
