@@ -44,7 +44,7 @@ set(GANESHA_PATCH_LEVEL )
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -ibm002.00)
+set(GANESHA_EXTRA_VERSION -ibm003.00)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -371,7 +371,7 @@ IF(USE_FSAL_ZFS)
     LIST(APPEND CMAKE_LIBRARY_PATH "${ZFS_PREFIX}/local/lib64")
     LIST(APPEND CMAKE_REQUIRED_INCLUDES "${ZFS_PREFIX}/include")
   ELSE()
-    set(ZFS_PREFIX "/usr" CACHE PATH "Path to ZFS installation")
+    set(ZFS_PREFIX "" CACHE PATH "Path to ZFS installation")
   ENDIF()
 ENDIF()
 
@@ -841,8 +841,6 @@ if(USE_DBUS)
   set(GANESHA_CORE ${GANESHA_CORE} gshdbus)
 endif(USE_DBUS)
 
-set(GANESHA_CORE ${GANESHA_CORE} NodeList)
-
 if(USE_9P_RDMA)
   find_package(PkgConfig)
   IF(MOOSHIKA_PREFIX)
@@ -907,7 +905,6 @@ add_subdirectory(cidr)
 add_subdirectory(test)
 add_subdirectory(avl)
 add_subdirectory(hashtable)
-add_subdirectory(NodeList)
 if(USE_CACHE_INODE)
   add_subdirectory(cache_inode)
 endif(USE_CACHE_INODE)

@@ -42,7 +42,6 @@
 #include "nfs_exports.h"
 #include "export_mgr.h"
 #include "pnfs_utils.h"
-#include "mdcache.h"
 #include "sal_data.h"
 
 /* The default location of gfapi log
@@ -649,7 +648,8 @@ fsal_status_t glusterfs_create_export(struct fsal_module *fsal_hdl,
 	if (!fs) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to create new glfs. Export: %s",
+			"Unable to create new glusterfs volume object for %s"
+			" and Export : %s", params.glvolname,
 			op_ctx->ctx_export->fullpath);
 		goto out;
 	}
@@ -676,8 +676,8 @@ fsal_status_t glusterfs_create_export(struct fsal_module *fsal_hdl,
 	if (rc != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to initialize volume. Export: %s",
-			op_ctx->ctx_export->fullpath);
+			"Unable to initialize volume: %s for Export: %s",
+			params.glvolname, op_ctx->ctx_export->fullpath);
 		goto out;
 	}
 
