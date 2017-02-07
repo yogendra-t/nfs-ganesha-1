@@ -835,6 +835,9 @@ fsal_status_t fsal_create(struct fsal_obj_handle *parent,
 	} else {
 		/* For support_ex API, turn off owner and/or group attr
 		 * if they are the same as the credentials.
+		 *
+		 * Handle IRIX and AIX set-gid case here: commit
+		 * 6e1c01d117e70243b461133fc764a6dfea0ea8e3
 		 */
 		if ((attrs->valid_mask & ATTR_OWNER) &&
 		    attrs->owner == op_ctx->creds->caller_uid)
