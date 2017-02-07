@@ -73,6 +73,18 @@ cache_inode_setattr(cache_entry_t *entry,
 	/* True if we have taken the content lock on 'entry' */
 	bool content_locked = false;
 
+	/* Setting uid/gid works only for root. AIX or Irix NFS clients
+	 * send gid on create if the parent directory has setgid bit set,
+	 * but this is unnecessary as the underlying POSIX file system
+	 * would honor this at create time itself.
+	 *
+	 * Clear the OWNER and GROUP attributes for create requests for
+	 * non-root users to work with AIX or Irix clients.
+	 */
+	if (is_create && creds->caller_uid != 0) {
+		FSAL_UNSET_MASK(attr->mask, ATTR_OWNER | ATTR_GROUP);
+	}
+
 	if ((attr->mask & (ATTR_SIZE | ATTR4_SPACE_RESERVED))
 	     && (entry->type != REGULAR_FILE)) {
 		LogWarn(COMPONENT_CACHE_INODE,
@@ -165,15 +177,6 @@ cache_inode_setattr(cache_entry_t *entry,
 	    not_in_group_list(entry->obj_handle->attrs->group)) {
 		/* Clear S_ISGID */
 		attr->mode &= ~S_ISGID;
-	}
-
-	/* Setting uid/gid works only for root. AIX or Irix NFS clients send 
- 	 * gid on create if the parent directory has setgid bit. 
- 	 * Clear the OWNER and GROUP attributes for create requests for 
- 	 * non-root users.
- 	 */
-	if (is_create && creds->caller_uid != 0) {
-	    attr->mask &= ~ (ATTR_OWNER | ATTR_GROUP); 
 	}
 
 	saved_acl = entry->obj_handle->attrs->acl;
