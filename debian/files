@@ -1,0 +1,4 @@
+nfs-ganesha-doc_2.3.2-ibm35.03_all.deb doc optional
+nfs-ganesha-fsal_2.3.2-ibm35.03_amd64.deb libs optional
+nfs-ganesha_2.3.2-ibm35.03_amd64.deb net optional
+python-nfs-ganesha_2.3.2-ibm35.03_all.deb python optional
