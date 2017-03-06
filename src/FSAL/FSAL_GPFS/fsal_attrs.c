@@ -58,7 +58,6 @@ fsal_status_t GPFSFSAL_fs_loc(struct fsal_export *export,	/* IN */
 				struct gpfs_filesystem *gpfs_fs, /* IN */
 				const struct req_op_context *p_context,	/* IN */
 				struct gpfs_file_handle *p_filehandle,	/* IN */
-				struct attrlist *p_object_attributes,  /* OUT */
 				struct fs_locations4 *fs_locs)         /* OUT */
 {
 	int errsv, rc;

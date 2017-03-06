@@ -714,17 +714,9 @@ static fsal_status_t gpfs_fs_locations(struct fsal_obj_handle *obj_hdl,
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle,
 			      obj_handle);
 
-	myself->attributes.mask = op_ctx->fsal_export->exp_ops.
-		fs_supported_attrs(op_ctx->fsal_export);
-
 	status = GPFSFSAL_fs_loc(op_ctx->fsal_export, obj_hdl->fs->private,
-				 op_ctx, myself->handle,
-				 &myself->attributes, fs_locs);
+				 op_ctx, myself->handle, fs_locs);
 
-	if (FSAL_IS_ERROR(status)) {
-		FSAL_CLEAR_MASK(myself->attributes.mask);
-		FSAL_SET_MASK(myself->attributes.mask, ATTR_RDATTR_ERR);
-	}
 	return status;
 }
 
