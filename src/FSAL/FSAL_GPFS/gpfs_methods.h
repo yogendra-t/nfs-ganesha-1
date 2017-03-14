@@ -1,6 +1,9 @@
 /* GPFS methods for handles
  */
 
+#ifndef GPFS_METHODS_H
+#define GPFS_METHODS_H
+
 #include <fcntl.h>
 #include "include/gpfs_nfs.h"
 
@@ -186,3 +189,5 @@ fsal_status_t gpfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 
 bool gpfs_compare(struct fsal_obj_handle *obj_hdl,
 		  struct fsal_obj_handle *other_hdl);
+
+#endif

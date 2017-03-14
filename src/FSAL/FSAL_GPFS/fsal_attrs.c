@@ -44,7 +44,9 @@
 
 extern fsal_status_t fsal_acl_2_gpfs_acl(struct fsal_obj_handle *dir_hdl,
 					 fsal_acl_t *p_fsalacl,
-					 gpfsfsal_xstat_t *p_buffxstat);
+					 gpfsfsal_xstat_t *p_buffxstat,
+					 gpfs_acl_t *acl_buf,
+					 unsigned int acl_buflen);
 
 /**
  * GPFSFSAL_fs_loc:
@@ -117,6 +119,10 @@ fsal_status_t GPFSFSAL_getattrs(struct fsal_export *export,	/* IN */
 	bool expire;
 	uint32_t expire_time_attr = 0;	/*< Expiration time for attributes. */
 	struct gpfs_fsal_export *gpfs_export;
+	gpfs_acl_t *acl_buf;
+	unsigned int acl_buflen;
+	bool use_acl;
+	int retry;
 
 	/* Initialize fsal_fsid to 0.0 in case older GPFS */
 	buffxstat.fsal_fsid.major = 0;
@@ -125,11 +131,44 @@ fsal_status_t GPFSFSAL_getattrs(struct fsal_export *export,	/* IN */
 	expire = p_context->export->expire_time_attr > 0;
 	gpfs_export = container_of(export, struct gpfs_fsal_export, export);
 
-	st = fsal_get_xstat_by_handle(gpfs_fs->root_fd, p_filehandle,
-				      &buffxstat, &expire_time_attr, expire,
-				      gpfs_export->use_acl);
+	/* Let us make the first request using the acl buffer that
+	 * is part of buffxstat itself. If that is not sufficient,
+	 * we allocate from heap and retry.
+	 */
+	use_acl = gpfs_export->use_acl;
+	for (retry = 0; retry < GPFS_ACL_MAX_RETRY; retry++) {
+		switch (retry) {
+		case 0: /* first attempt */
+			acl_buf = (gpfs_acl_t *)buffxstat.buffacl;
+			acl_buflen = GPFS_ACL_BUF_SIZE;
+			break;
+		case 1: /* first retry, don't free the old stack buffer */
+			acl_buflen = acl_buf->acl_len;
+			acl_buf = gsh_malloc(acl_buflen);
+			break;
+		default: /* second or later retry, free the old heap buffer */
+			acl_buflen = acl_buf->acl_len;
+			gsh_free(acl_buf);
+			acl_buf = gsh_malloc(acl_buflen);
+			break;
+		}
+
+		st = fsal_get_xstat_by_handle(gpfs_fs->root_fd, p_filehandle,
+				&buffxstat, acl_buf, acl_buflen,
+				&expire_time_attr, expire, use_acl);
+
+		if (FSAL_IS_ERROR(st) || !use_acl ||
+				acl_buflen >= acl_buf->acl_len)
+			break;
+	}
+
+	if (retry == GPFS_ACL_MAX_RETRY) { /* make up an error */
+		LogCrit(COMPONENT_FSAL, "unable to get ACLs");
+		st = fsalstat(ERR_FSAL_SERVERFAULT, 0);
+	}
+
 	if (FSAL_IS_ERROR(st))
-		return st;
+		goto error;
 
 	/* convert attributes */
 	if (expire_time_attr != 0)
@@ -142,15 +181,21 @@ fsal_status_t GPFSFSAL_getattrs(struct fsal_export *export,	/* IN */
 		buffxstat.fsal_fsid = gpfs_fs->fs->fsid;
 
 	st = gpfsfsal_xstat_2_fsal_attributes(&buffxstat, p_object_attributes,
-					      gpfs_export->use_acl);
+					      acl_buf, use_acl);
+
+error:
 	if (FSAL_IS_ERROR(st)) {
 		FSAL_CLEAR_MASK(p_object_attributes->mask);
 		FSAL_SET_MASK(p_object_attributes->mask, ATTR_RDATTR_ERR);
-		return st;
 	}
 
-	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+	/* Free acl buffer if we allocated on heap */
+	if (acl_buflen != GPFS_ACL_BUF_SIZE) {
+		assert(acl_buf != (gpfs_acl_t *)buffxstat.buffacl);
+		gsh_free(acl_buf);
+	}
 
+	return st;
 }
 
 /**
@@ -224,6 +269,8 @@ fsal_status_t GPFSFSAL_setattrs(struct fsal_obj_handle *dir_hdl,	/* IN */
 	gpfsfsal_xstat_t buffxstat;
 	struct gpfs_filesystem *gpfs_fs;
 	struct gpfs_fsal_export *gpfs_export;
+	gpfs_acl_t *acl_buf = NULL;
+	unsigned int acl_buflen = 0;
 	bool use_acl;
 
 	/* Indicate if stat or acl or both should be changed. */
@@ -380,35 +427,45 @@ fsal_status_t GPFSFSAL_setattrs(struct fsal_obj_handle *dir_hdl,	/* IN */
 		attr_valid |= XATTR_STAT;
 
 	if (use_acl && FSAL_TEST_MASK(p_object_attributes->mask, ATTR_ACL)) {
-		if (p_object_attributes->acl) {
-			attr_valid |= XATTR_ACL;
-			LogDebug(COMPONENT_FSAL, "setattr acl = %p",
-				 p_object_attributes->acl);
-
-			/* Convert FSAL ACL to GPFS NFS4 ACL and fill buffer. */
-			status =
-			    fsal_acl_2_gpfs_acl(dir_hdl,
-						p_object_attributes->acl,
-						&buffxstat);
-
-			if (FSAL_IS_ERROR(status))
-				return status;
-		} else {
+		if (!p_object_attributes->acl) {
 			LogCrit(COMPONENT_FSAL, "setattr acl is NULL");
 			return fsalstat(ERR_FSAL_FAULT, 0);
 		}
+
+		attr_valid |= XATTR_ACL;
+		LogDebug(COMPONENT_FSAL,
+			 "setattr acl = %p", p_object_attributes->acl);
+
+		/* Convert FSAL ACL to GPFS NFS4 ACL and fill buffer. */
+		acl_buflen = offsetof(gpfs_acl_t, ace_v1) +
+			p_object_attributes->acl->naces * sizeof(gpfs_ace_v4_t);
+		if (acl_buflen > GPFS_ACL_BUF_SIZE)
+			acl_buf = gsh_malloc(acl_buflen);
+		else
+			acl_buf = (gpfs_acl_t *)buffxstat.buffacl;
+
+		status = fsal_acl_2_gpfs_acl(dir_hdl, p_object_attributes->acl,
+					     &buffxstat, acl_buf, acl_buflen);
+
+		if (FSAL_IS_ERROR(status))
+			goto acl_free;
 	}
 
 	/* If there is any change in stat or acl or both, send it down to fs. */
 	if (attr_valid != 0) {
 		status = fsal_set_xstat_by_handle(gpfs_fs->root_fd, p_context,
 						  myself->handle, attr_valid,
-						  attr_changed, &buffxstat);
+						  attr_changed, &buffxstat,
+						  acl_buf);
 
 		if (FSAL_IS_ERROR(status))
-			return status;
+			goto acl_free;
 	}
 
-	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+	status = fsalstat(ERR_FSAL_NO_ERROR, 0);
 
+acl_free:
+	if (acl_buflen > GPFS_ACL_BUF_SIZE)
+		gsh_free(acl_buf);
+	return status;
 }

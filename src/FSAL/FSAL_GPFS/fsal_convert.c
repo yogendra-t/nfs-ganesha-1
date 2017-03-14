@@ -91,6 +91,7 @@ void posix2fsal_attributes(const struct stat *p_buffstat,
  * is enabled, this will replace posixstat64_2_fsal_attributes. */
 fsal_status_t gpfsfsal_xstat_2_fsal_attributes(gpfsfsal_xstat_t *p_buffxstat,
 					       struct attrlist *p_fsalattr_out,
+					       gpfs_acl_t *acl_buf,
 					       bool use_acl)
 {
 	struct stat *p_buffstat;
@@ -125,9 +126,20 @@ fsal_status_t gpfsfsal_xstat_2_fsal_attributes(gpfsfsal_xstat_t *p_buffxstat,
 		p_fsalattr_out->acl = NULL;
 		if (use_acl && p_buffxstat->attr_valid & XATTR_ACL) {
 			/* ACL is valid, so try to convert fsal acl. */
-			gpfs_acl_2_fsal_acl(p_fsalattr_out,
-					    (gpfs_acl_t *) p_buffxstat->
-					    buffacl);
+			int ret;
+
+			ret = gpfs_acl_2_fsal_acl(p_fsalattr_out, acl_buf);
+			if (ret == 0) {
+				/* Only mark ACL valid if we actually provide
+				 * one in fsal_attr.
+				 */
+				p_fsalattr_out->mask |= ATTR_ACL;
+			} else {
+				/* Otherwise, we were asked for ACL and could
+				 * not provide one, so we must fail.
+				 */
+				return fsalstat(ret, 0);
+			}
 		}
 		LogFullDebug(COMPONENT_FSAL, "acl = %p", p_fsalattr_out->acl);
 	}
@@ -291,52 +303,48 @@ static int gpfs_acl_2_fsal_acl(struct attrlist *p_object_attributes,
 /* Covert FSAL ACLs to GPFS NFS4 ACLs. */
 fsal_status_t fsal_acl_2_gpfs_acl(struct fsal_obj_handle *dir_hdl,
 				  fsal_acl_t *p_fsalacl,
-				  gpfsfsal_xstat_t *p_buffxstat)
+				  gpfsfsal_xstat_t *p_buffxstat,
+				  gpfs_acl_t *acl_buf, unsigned int acl_buflen)
 {
 	int i;
 	fsal_ace_t *pace;
-	gpfs_acl_t *p_gpfsacl;
 
-	p_gpfsacl = (gpfs_acl_t *) p_buffxstat->buffacl;
-
-	p_gpfsacl->acl_level = 0;
-	p_gpfsacl->acl_version = GPFS_ACL_VERSION_NFS4;
-	p_gpfsacl->acl_type = GPFS_ACL_TYPE_NFS4;
-	p_gpfsacl->acl_nace = p_fsalacl->naces;
-	p_gpfsacl->acl_len =
-	    ((int)(signed long)&(((gpfs_acl_t *) 0)->ace_v1)) +
-	    p_gpfsacl->acl_nace * sizeof(gpfs_ace_v4_t);
+	acl_buf->acl_level = 0;
+	acl_buf->acl_version = GPFS_ACL_VERSION_NFS4;
+	acl_buf->acl_type = GPFS_ACL_TYPE_NFS4;
+	acl_buf->acl_nace = p_fsalacl->naces;
+	acl_buf->acl_len = acl_buflen;
 
 	for (pace = p_fsalacl->aces, i = 0;
 	     pace < p_fsalacl->aces + p_fsalacl->naces; pace++, i++) {
-		p_gpfsacl->ace_v4[i].aceType = pace->type;
-		p_gpfsacl->ace_v4[i].aceFlags = pace->flag;
-		p_gpfsacl->ace_v4[i].aceIFlags = pace->iflag;
-		p_gpfsacl->ace_v4[i].aceMask = pace->perm;
+		acl_buf->ace_v4[i].aceType = pace->type;
+		acl_buf->ace_v4[i].aceFlags = pace->flag;
+		acl_buf->ace_v4[i].aceIFlags = pace->iflag;
+		acl_buf->ace_v4[i].aceMask = pace->perm;
 
 		if (IS_FSAL_ACE_SPECIAL_ID(*pace))
-			p_gpfsacl->ace_v4[i].aceWho = pace->who.uid;
+			acl_buf->ace_v4[i].aceWho = pace->who.uid;
 		else {
 			if (IS_FSAL_ACE_GROUP_ID(*pace))
-				p_gpfsacl->ace_v4[i].aceWho = pace->who.gid;
+				acl_buf->ace_v4[i].aceWho = pace->who.gid;
 			else
-				p_gpfsacl->ace_v4[i].aceWho = pace->who.uid;
+				acl_buf->ace_v4[i].aceWho = pace->who.uid;
 		}
 
 		LogMidDebug(COMPONENT_FSAL,
 			 "fsal_acl_2_gpfs_acl: gpfs ace: type = 0x%x, flag = 0x%x, perm = 0x%x, special = %d, %s = 0x%x",
-			 p_gpfsacl->ace_v4[i].aceType,
-			 p_gpfsacl->ace_v4[i].aceFlags,
-			 p_gpfsacl->ace_v4[i].aceMask,
-			 (p_gpfsacl->ace_v4[i].
+			 acl_buf->ace_v4[i].aceType,
+			 acl_buf->ace_v4[i].aceFlags,
+			 acl_buf->ace_v4[i].aceMask,
+			 (acl_buf->ace_v4[i].
 			  aceIFlags & FSAL_ACE_IFLAG_SPECIAL_ID) ? 1 : 0,
-			 (p_gpfsacl->ace_v4[i].
+			 (acl_buf->ace_v4[i].
 			  aceFlags & FSAL_ACE_FLAG_GROUP_ID) ? "gid" : "uid",
-			 p_gpfsacl->ace_v4[i].aceWho);
+			 acl_buf->ace_v4[i].aceWho);
 
 		/* It is invalid to set inherit flags on non dir objects */
 		if (dir_hdl->type != DIRECTORY &&
-		    (p_gpfsacl->ace_v4[i].aceFlags &
+		    (acl_buf->ace_v4[i].aceFlags &
 		    FSAL_ACE_FLAG_INHERIT) != 0) {
 			LogMidDebug(COMPONENT_FSAL,
 			   "attempt to set inherit flag to non dir object");
@@ -345,7 +353,7 @@ fsal_status_t fsal_acl_2_gpfs_acl(struct fsal_obj_handle *dir_hdl,
 
 		/* It is invalid to set inherit only with
 		 * out an actual inherit flag */
-		if ((p_gpfsacl->ace_v4[i].aceFlags & FSAL_ACE_FLAG_INHERIT) ==
+		if ((acl_buf->ace_v4[i].aceFlags & FSAL_ACE_FLAG_INHERIT) ==
 			FSAL_ACE_FLAG_INHERIT_ONLY) {
 			LogMidDebug(COMPONENT_FSAL,
 			   "attempt to set inherit only without an inherit flag");
