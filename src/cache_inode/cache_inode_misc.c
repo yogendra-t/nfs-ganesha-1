@@ -489,7 +489,6 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
 void cache_inode_unexport(struct gsh_export *export)
 {
 	cache_entry_t *entry;
-	cache_inode_status_t status;
 	struct entry_export_map *expmap;
 
 	while (true) {
@@ -507,13 +506,7 @@ void cache_inode_unexport(struct gsh_export *export)
 
 		entry = expmap->entry;
 
-		status = cache_inode_lru_ref(entry, LRU_FLAG_NONE);
-
-		if (status != CACHE_INODE_SUCCESS) {
-			/* This entry was going stale, skip it. */
-			PTHREAD_RWLOCK_unlock(&export->lock);
-			continue;
-		}
+		(void) cache_inode_lru_ref(entry, LRU_REQ_STALE_OK);
 
 		PTHREAD_RWLOCK_unlock(&export->lock);
 
