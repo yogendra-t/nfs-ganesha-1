@@ -186,6 +186,8 @@ static struct config_item core_params[] = {
 		       nfs_core_param, heartbeat_freq),
 	CONF_ITEM_BOOL("fsid_device", false,
 		       nfs_core_param, fsid_device),
+	CONF_ITEM_BOOL("mount_path_pseudo", false,
+		       nfs_core_param, mount_path_pseudo),
 	CONFIG_EOL
 };
 
@@ -246,7 +248,7 @@ static struct config_item version4_params[] = {
 		       nfs_version4_parameter, grace_period),
 	CONF_ITEM_STR("DomainName", 1, MAXPATHLEN, DOMAINNAME_DEFAULT,
 		      nfs_version4_parameter, domainname),
-	CONF_ITEM_PATH("IdmapConf", 1, MAXPATHLEN, "/etc/idmapd.conf",
+	CONF_ITEM_PATH("IdmapConf", 1, MAXPATHLEN, IDMAPCONF_DEFAULT,
 		       nfs_version4_parameter, idmapconf),
 	CONF_ITEM_BOOL("UseGetpwnam", GETPWNAMDEF,
 		       nfs_version4_parameter, use_getpwnam),

@@ -62,10 +62,11 @@ static struct fsal_staticfsinfo_t default_rgw_info = {
 	.acl_support = false,
 	.cansettime = true,
 	.homogenous = true,
-	.supported_attrs = rgw_supported_attributes,
+	.supported_attrs = RGW_SUPPORTED_ATTRIBUTES,
 	.maxread = FSAL_MAXIOSIZE,
 	.maxwrite = FSAL_MAXIOSIZE,
 	.umask = 0,
+	.rename_changes_key = true,
 };
 
 static struct config_item rgw_items[] = {
@@ -301,6 +302,11 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		LogCrit(COMPONENT_FSAL,
 			"Unable to mount RGW cluster for %s.",
 			op_ctx->ctx_export->fullpath);
+		if (rgw_status == -EINVAL) {
+			LogCrit(COMPONENT_FSAL,
+			"Authorization Failed for user %s ",
+			export->rgw_user_id);
+		}
 		goto error;
 	}
 

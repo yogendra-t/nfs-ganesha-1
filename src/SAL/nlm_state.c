@@ -121,8 +121,8 @@ int display_nlm_state_val(struct gsh_buffdesc *buff, char *str)
 int compare_nlm_state(state_t *state1, state_t *state2)
 {
 	if (isFullDebug(COMPONENT_STATE) && isDebug(COMPONENT_HASHTABLE)) {
-		char str1[LOG_BUFF_LEN / 2];
-		char str2[LOG_BUFF_LEN / 2];
+		char str1[LOG_BUFF_LEN / 2] = "\0";
+		char str2[LOG_BUFF_LEN / 2] = "\0";
 		struct display_buffer dspbuf1 = {sizeof(str1), str1, str1};
 		struct display_buffer dspbuf2 = {sizeof(str2), str2, str2};
 
@@ -140,8 +140,7 @@ int compare_nlm_state(state_t *state1, state_t *state2)
 	return state1->state_type != state2->state_type ||
 	       state1->state_owner != state2->state_owner ||
 	       state1->state_export != state2->state_export ||
-	       memcmp(&state1->state_obj, &state2->state_obj,
-		      sizeof(state1->state_obj));
+	       state1->state_obj != state2->state_obj;
 }
 
 /**
@@ -258,14 +257,13 @@ int Init_nlm_state_hash(void)
  */
 void dec_nlm_state_ref(state_t *state)
 {
-	char str[LOG_BUFF_LEN];
+	char str[LOG_BUFF_LEN] = "\0";
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 	bool str_valid = false;
 	struct hash_latch latch;
 	hash_error_t rc;
 	struct gsh_buffdesc buffkey;
 	struct gsh_buffdesc old_value;
-	struct gsh_buffdesc old_key;
 	int32_t refcount;
 	struct fsal_obj_handle *obj;
 
@@ -295,10 +293,22 @@ void dec_nlm_state_ref(state_t *state)
 	rc = hashtable_getlatch(ht_nlm_states, &buffkey, &old_value, true,
 				&latch);
 
-	if (rc != HASHTABLE_SUCCESS) {
-		if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
-			hashtable_releaselatched(ht_nlm_states, &latch);
+	/* Another thread that needs this entry might have deleted this
+	 * nlm state to insert its own nlm state. So expect not to find
+	 * this nlm state or find someone else's nlm state!
+	 */
+	switch (rc) {
+	case HASHTABLE_SUCCESS:
+		if (old_value.addr == state) { /* our own state */
+			hashtable_deletelatched(ht_nlm_states, &buffkey,
+						&latch, NULL, NULL);
+		}
+		break;
 
+	case HASHTABLE_ERROR_NO_SUCH_KEY:
+		break;
+
+	default:
 		if (!str_valid)
 			display_nlm_state(&dspbuf, state);
 
@@ -307,23 +317,6 @@ void dec_nlm_state_ref(state_t *state)
 
 		return;
 	}
-
-	refcount = atomic_fetch_int32_t(&state->state_refcount);
-
-	if (refcount > 0) {
-		if (str_valid)
-			LogDebug(COMPONENT_STATE,
-				 "Did not release refcount now=%"PRId32" {%s}",
-				 refcount, str);
-
-		hashtable_releaselatched(ht_nlm_states, &latch);
-
-		return;
-	}
-
-	/* use the key to delete the entry */
-	hashtable_deletelatched(ht_nlm_states, &buffkey, &latch, &old_key,
-				&old_value);
 
 	/* Release the latch */
 	hashtable_releaselatched(ht_nlm_states, &latch);
@@ -376,12 +369,12 @@ int get_nlm_state(enum state_type state_type,
 {
 	state_t key;
 	state_t *state;
-	char str[LOG_BUFF_LEN];
+	char str[LOG_BUFF_LEN] = "\0";
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 	struct hash_latch latch;
 	hash_error_t rc;
-	struct gsh_buffdesc buffkey, old_key;
-	struct gsh_buffdesc buffval, old_value;
+	struct gsh_buffdesc buffkey;
+	struct gsh_buffdesc buffval;
 
 	*pstate = NULL;
 	memset(&key, 0, sizeof(key));
@@ -390,12 +383,7 @@ int get_nlm_state(enum state_type state_type,
 	key.state_owner = state_owner;
 	key.state_export = op_ctx->ctx_export;
 	key.state_seqid = nsm_state;
-	/* Temporarily use buffkey */
-	buffkey.addr = &key.state_obj.digest;
-	buffkey.len = sizeof(key.state_obj.digest);
-	state_obj->obj_ops.handle_digest(state_obj, FSAL_DIGEST_NFSV4,
-					 &buffkey);
-	key.state_obj.len = buffkey.len;
+	key.state_obj = state_obj;
 
 	if (isFullDebug(COMPONENT_STATE)) {
 		display_nlm_state(&dspbuf, &key);
@@ -408,26 +396,26 @@ int get_nlm_state(enum state_type state_type,
 	rc = hashtable_getlatch(ht_nlm_states, &buffkey, &buffval, true,
 				&latch);
 
-	/* If we found it, return it */
-	if (rc == HASHTABLE_SUCCESS) {
+	switch (rc) {
+	case HASHTABLE_SUCCESS:
 		state = buffval.addr;
 
-		if (nsm_state_applies && state->state_seqid != nsm_state) {
-			/* We are getting new locks before the old ones are
-			 * gone. We need to unhash this state_t and create a
-			 * new one.
+		if (nsm_state_applies &&
+		    (state->state_seqid != nsm_state ||
+		     atomic_fetch_int32_t(&state->state_refcount) == 0)) {
+			/* We are getting new locks before the old ones
+			 * are gone or the state is in the process of
+			 * getting deleted. We need to unhash this
+			 * state_t and create a new one.
 			 *
 			 * Keep the latch after the delete to proceed with
 			 * the new insert.
 			 */
 
 			/* use the key to delete the entry */
-			hashtable_deletelatched(ht_nlm_states,
-						&buffkey,
-						&latch,
-						&old_key,
-						&old_value);
-			goto new_state;
+			hashtable_deletelatched(ht_nlm_states, &buffkey,
+						&latch, NULL, NULL);
+			break;
 		}
 
 		/* Return the found NLM State */
@@ -446,10 +434,11 @@ int get_nlm_state(enum state_type state_type,
 
 		*pstate = state;
 		return 0;
-	}
 
-	/* An error occurred, return NULL */
-	if (rc != HASHTABLE_ERROR_NO_SUCH_KEY) {
+	case HASHTABLE_ERROR_NO_SUCH_KEY:
+		break;
+
+	default: /* An error occurred, return NULL */
 		display_nlm_state(&dspbuf, &key);
 
 		LogCrit(COMPONENT_STATE, "Error %s, could not find {%s}",
@@ -459,8 +448,6 @@ int get_nlm_state(enum state_type state_type,
 
 		return NLM4_DENIED_NOLOCKS;
 	}
-
- new_state:
 
 	/* If the nsm state doesn't apply, we don't want to create a new
 	 * state_t if one didn't exist already.
@@ -475,7 +462,7 @@ int get_nlm_state(enum state_type state_type,
 							 NULL);
 
 	/* Copy everything over */
-	memcpy(&state->state_obj, &key.state_obj, sizeof(state->state_obj));
+	state->state_obj = state_obj;
 	state->state_owner = state_owner;
 	state->state_export = op_ctx->ctx_export;
 	state->state_seqid = nsm_state;

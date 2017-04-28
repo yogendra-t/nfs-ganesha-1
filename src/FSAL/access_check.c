@@ -391,7 +391,7 @@ static void fsal_print_access_by_acl(int naces, int ace_number,
 				     bool is_dir,
 				     struct user_cred *creds)
 {
-	char str[LOG_BUFF_LEN];
+	char str[LOG_BUFF_LEN] = "\0";
 	struct display_buffer dspbuf = { sizeof(str), str, str };
 	int b_left;
 
@@ -474,7 +474,8 @@ static fsal_status_t fsal_check_access_acl(struct user_cred *creds,
 	gid = p_object_attributes->group;
 	pacl = p_object_attributes->acl;
 	is_dir = (p_object_attributes->type == DIRECTORY);
-	is_root = creds->caller_uid == 0;
+	is_root = op_ctx->fsal_export->exp_ops.is_superuser(
+						op_ctx->fsal_export, creds);
 
 	if (is_root) {
 		if (is_dir) {
@@ -504,7 +505,7 @@ static fsal_status_t fsal_check_access_acl(struct user_cred *creds,
 		     "file acl=%p, file uid=%u, file gid=%u, ", pacl, uid, gid);
 
 	if (isFullDebug(COMPONENT_NFS_V4_ACL)) {
-		char str[LOG_BUFF_LEN];
+		char str[LOG_BUFF_LEN] = "\0";
 		struct display_buffer dspbuf = { sizeof(str), str, str };
 
 		(void)display_fsal_v4mask(&dspbuf, v4mask,
@@ -721,7 +722,8 @@ fsal_check_access_no_acl(struct user_cred *creds,
 		     creds->caller_uid, creds->caller_gid,
 		     access_type);
 
-	if (creds->caller_uid == 0) {
+	if (op_ctx->fsal_export->exp_ops.is_superuser(op_ctx->fsal_export,
+						      creds)) {
 		if (p_object_attributes->type == DIRECTORY) {
 			if (allowed != NULL)
 				*allowed = access_type;

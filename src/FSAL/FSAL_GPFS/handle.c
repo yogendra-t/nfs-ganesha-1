@@ -515,8 +515,9 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 	myself = container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 	gpfs_fs = dir_hdl->fs->private_data;
 
-	status = fsal_internal_handle2fd_at(gpfs_fs->root_fd, myself->handle,
-					    &dirfd, O_RDONLY | O_DIRECTORY, 0);
+	status = fsal_internal_handle2fd(gpfs_fs->root_fd, myself->handle,
+					 &dirfd, O_RDONLY | O_DIRECTORY, 0);
+
 	if (dirfd < 0)
 		return status;
 
@@ -539,7 +540,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 		for (bpos = 0; bpos < nread;) {
 			struct fsal_obj_handle *hdl;
 			struct attrlist attrs;
-			bool cb_rc;
+			enum fsal_dir_result cb_rc;
 
 			dentry = (struct dirent64 *)(buf + bpos);
 			if (strcmp(dentry->d_name, ".") == 0
@@ -560,7 +561,8 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 
 			fsal_release_attrs(&attrs);
 
-			if (!cb_rc)
+			/* Read ahead not supported by this FSAL. */
+			if (cb_rc >= DIR_READAHEAD)
 				goto done;
  skip:
 			bpos += dentry->d_reclen;
@@ -832,19 +834,6 @@ static fsal_status_t listxattrs(struct fsal_obj_handle *obj_hdl,
 /*
  * NOTE: this is done under protection of the attributes rwlock in cache entry.
  */
-static fsal_status_t setattrs(struct fsal_obj_handle *obj_hdl,
-			      struct attrlist *attrs)
-{
-	fsal_status_t status;
-
-	status = GPFSFSAL_setattrs(obj_hdl, op_ctx, attrs);
-
-	return status;
-}
-
-/*
- * NOTE: this is done under protection of the attributes rwlock in cache entry.
- */
 fsal_status_t gpfs_setattr2(struct fsal_obj_handle *obj_hdl,
 				   bool bypass,
 				   struct state_t *state,
@@ -941,13 +930,23 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 static void release(struct fsal_obj_handle *obj_hdl)
 {
 	struct gpfs_fsal_obj_handle *myself;
-	object_file_type_t type = obj_hdl->type;
-
-	LogFullDebug(COMPONENT_FSAL, "type %d", type);
-	if (type == REGULAR_FILE)
-		gpfs_close(obj_hdl);
+	const object_file_type_t type = obj_hdl->type;
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
+
+	LogFullDebug(COMPONENT_FSAL, "type %d", type);
+	if (type == REGULAR_FILE) {
+		PTHREAD_RWLOCK_wrlock(&obj_hdl->obj_lock);
+
+		if (myself->u.file.fd.fd >= 0 &&
+		    myself->u.file.fd.openflags != FSAL_O_CLOSED) {
+			fsal_internal_close(myself->u.file.fd.fd, NULL, 0);
+			myself->u.file.fd.fd = -1;
+			myself->u.file.fd.openflags = FSAL_O_CLOSED;
+		}
+
+		PTHREAD_RWLOCK_unlock(&obj_hdl->obj_lock);
+	}
 
 	fsal_obj_handle_fini(obj_hdl);
 
@@ -1010,22 +1009,13 @@ void gpfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->symlink = makesymlink;
 	ops->readlink = readsymlink;
 	ops->getattrs = getattrs;
-	ops->setattrs = setattrs;
 	ops->link = linkfile;
 	ops->rename = renamefile;
 	ops->unlink = file_unlink;
-	ops->open = gpfs_open;
-	ops->reopen = gpfs_reopen;
 	ops->fs_locations = gpfs_fs_locations;
 	ops->status = gpfs_status;
-	ops->read = gpfs_read;
-	ops->read_plus = gpfs_read_plus;
-	ops->write = gpfs_write;
-	ops->write_plus = gpfs_write_plus;
 	ops->seek = gpfs_seek;
 	ops->io_advise = gpfs_io_advise;
-	ops->commit = gpfs_commit;
-	ops->lock_op = gpfs_lock_op;
 	ops->share_op = share_op;
 	ops->close = gpfs_close;
 	ops->handle_digest = handle_digest;
@@ -1059,11 +1049,9 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
 			       struct fsal_obj_handle **handle,
 			       struct attrlist *attrs_out)
 {
-	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	fsal_status_t fsal_status;
 	int retval = 0;
 	int dir_fd;
-	int exp_fd = 0;
 	struct fsal_filesystem *fs;
 	struct gpfs_fsal_obj_handle *hdl;
 	struct attrlist attributes;
@@ -1071,6 +1059,10 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
 	struct gpfs_file_handle *fh = alloca(sizeof(struct gpfs_file_handle));
 	struct fsal_fsid__ fsid;
 	struct gpfs_fsal_export *gpfs_export;
+	gpfs_acl_t *acl_buf;
+	unsigned int acl_buflen;
+	bool use_acl;
+	int retry;
 
 	memset(fh, 0, sizeof(struct gpfs_file_handle));
 	fh->handle_size = GPFS_MAX_FH_SIZE;
@@ -1086,32 +1078,67 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
 
 	if (dir_fd < 0) {
 		LogCrit(COMPONENT_FSAL,
-			"Could not open directory for path %s",
-			path);
-		retval = -dir_fd;
+			"Could not open directory for path %s", path);
+		fsal_status = fsalstat(posix2fsal_error(-dir_fd), retval);
 		goto errout;
 	}
 
-	fsal_status = fsal_internal_fd2handle(dir_fd, fh, &exp_fd);
+	fsal_status = fsal_internal_fd2handle(dir_fd, fh);
 	if (FSAL_IS_ERROR(fsal_status))
 		goto fileerr;
 
 	gpfs_export = container_of(exp_hdl, struct gpfs_fsal_export, export);
 
-	fsal_status = fsal_get_xstat_by_handle(dir_fd, fh, &buffxstat,
-					       NULL, false,
-					       (attributes.request_mask &
-							ATTR_ACL) != 0);
+	/* Let us make the first request using the acl buffer that is
+	 * part of buffxstat itself. If that is not sufficient, we
+	 * allocate from heap and retry.
+	 */
+	use_acl = attributes.request_mask & ATTR_ACL;
+	for (retry = 0; retry < GPFS_ACL_MAX_RETRY; retry++) {
+		switch (retry) {
+		case 0: /* first attempt */
+			acl_buf = (gpfs_acl_t *)buffxstat.buffacl;
+			acl_buflen = GPFS_ACL_BUF_SIZE;
+			break;
+		case 1: /* first retry, don't free the old stack buffer */
+			acl_buflen = acl_buf->acl_len;
+			acl_buf = gsh_malloc(acl_buflen);
+			break;
+		default: /* second or later retry, free the old heap buffer */
+			acl_buflen = acl_buf->acl_len;
+			gsh_free(acl_buf);
+			acl_buf = gsh_malloc(acl_buflen);
+			break;
+		}
+
+		fsal_status = fsal_get_xstat_by_handle(dir_fd, fh, &buffxstat,
+				acl_buf, acl_buflen, NULL, false, use_acl);
+		if (FSAL_IS_ERROR(fsal_status) || !use_acl ||
+				acl_buflen >= acl_buf->acl_len)
+			break;
+	}
+
+	if (retry == GPFS_ACL_MAX_RETRY) { /* make up an error */
+		LogCrit(COMPONENT_FSAL, "unable to get ACLs");
+		fsal_status = fsalstat(ERR_FSAL_SERVERFAULT, 0);
+	}
+
 	if (FSAL_IS_ERROR(fsal_status))
-		goto fileerr;
+		goto xstat_err;
+
 	fsal_status = gpfsfsal_xstat_2_fsal_attributes(&buffxstat, &attributes,
-						       gpfs_export->use_acl);
+						acl_buf, gpfs_export->use_acl);
 	LogFullDebug(COMPONENT_FSAL,
 		     "fsid=0x%016"PRIx64".0x%016"PRIx64,
-		     attributes.fsid.major,
-		     attributes.fsid.minor);
+		     attributes.fsid.major, attributes.fsid.minor);
+
 	if (FSAL_IS_ERROR(fsal_status))
-		goto fileerr;
+		goto xstat_err;
+
+	if (acl_buflen != GPFS_ACL_BUF_SIZE) {
+		assert(acl_buf != (gpfs_acl_t *)buffxstat.buffacl);
+		gsh_free(acl_buf);
+	}
 
 	close(dir_fd);
 
@@ -1123,14 +1150,14 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
 		LogInfo(COMPONENT_FSAL,
 			"Could not find file system for path %s",
 			path);
-		retval = ENOENT;
+		fsal_status = fsalstat(posix2fsal_error(ENOENT), ENOENT);
 		goto errout;
 	}
 	if (fs->fsal != exp_hdl->fsal) {
 		LogInfo(COMPONENT_FSAL,
 			"File system for path %s did not belong to FSAL %s",
 			path, exp_hdl->fsal->name);
-		retval = EACCES;
+		fsal_status = fsalstat(posix2fsal_error(EACCES), EACCES);
 		goto errout;
 	}
 
@@ -1152,17 +1179,20 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
 	*handle = &hdl->obj_handle;
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 
- fileerr:
-	retval = errno;
+xstat_err:
+	/* free if the acl buffer is from the heap */
+	if (acl_buflen != GPFS_ACL_BUF_SIZE) {
+		assert(acl_buf != (gpfs_acl_t *)buffxstat.buffacl);
+		gsh_free(acl_buf);
+	}
+
+fileerr:
 	close(dir_fd);
 
- errout:
-
+errout:
 	/* Done with attributes */
 	fsal_release_attrs(&attributes);
-
-	fsal_error = posix2fsal_error(retval);
-	return fsalstat(fsal_error, retval);
+	return fsal_status;
 }
 
 /**

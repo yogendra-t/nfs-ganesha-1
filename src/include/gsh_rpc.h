@@ -19,14 +19,13 @@
 #include <rpc/svc.h>
 #include <rpc/clnt.h>
 
+#include <rpc/svc_auth.h>
 #ifdef _HAVE_GSSAPI
 #include <rpc/auth_gss.h>
-#endif
-#include <rpc/svc_auth.h>
-#include <rpc/svc_rqst.h>
-#include <rpc/rpc_dplx.h>
-#include <rpc/rpc_msg.h>
 #include <rpc/gss_internal.h>	/* XXX */
+#endif
+#include <rpc/svc_rqst.h>
+#include <rpc/rpc_msg.h>
 #include "common_utils.h"
 #include "abstract_mem.h"
 #include "gsh_list.h"
@@ -103,6 +102,7 @@ void freenetconfigent(struct netconfig *);
  */
 #define DEFAULT_NFS_KEYTAB ""
 
+#ifdef _HAVE_GSSAPI
 /**
  * @brief Kerberos 5 parameters
  */
@@ -136,6 +136,7 @@ typedef struct nfs_krb5_param {
 
 void log_sperror_gss(char *, OM_uint32, OM_uint32);
 const char *str_gc_proc(rpc_gss_proc_t);
+#endif /* _HAVE_GSSAPI */
 
 /* Private data associated with a new TI-RPC (TCP) SVCXPRT (transport
  * connection), ie, xprt->xp_u1.
@@ -267,41 +268,6 @@ static inline void gsh_xprt_clear_flag(SVCXPRT *xprt, uint32_t flags)
 	if (flags & XPRT_PRIVATE_FLAG_LOCKED)
 		PTHREAD_MUTEX_unlock(&xprt->xp_lock);
 }
-
-#define DISP_SLOCK(x)							\
-do {									\
-	if (!slocked) {							\
-		if ((x)->xp_type == XPRT_UDP) {				\
-			SVC_LOCK((x), XP_LOCK_SEND, __func__,		\
-				 __LINE__);				\
-			slocked = true;					\
-		}							\
-	}								\
-} while (0)
-
-#define DISP_SUNLOCK(x)							\
-do {									\
-	if (slocked) {							\
-		SVC_UNLOCK((x), XP_LOCK_SEND, __func__, __LINE__);	\
-		slocked = false;					\
-	}								\
-} while (0)
-
-#define DISP_RLOCK(x)							\
-do {									\
-	if (!rlocked) {							\
-		SVC_LOCK((x), XP_LOCK_RECV, __func__, __LINE__);	\
-		rlocked = true;						\
-	}								\
-} while (0)
-
-#define DISP_RUNLOCK(x)							\
-do {									\
-	if (rlocked) {							\
-		SVC_UNLOCK((x), XP_LOCK_RECV, __func__, __LINE__);	\
-		rlocked = false;					\
-	}								\
-} while (0)
 
 bool copy_xprt_addr(sockaddr_t *, SVCXPRT *);
 

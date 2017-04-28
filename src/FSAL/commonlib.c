@@ -374,6 +374,22 @@ const char *msg_fsal_err(fsal_errors_t fsal_err)
 	return "Unknown FSAL error";
 }
 
+const char *fsal_dir_result_str(enum fsal_dir_result result)
+{
+	switch (result) {
+	case DIR_CONTINUE:
+		return "DIR_CONTINUE";
+
+	case DIR_READAHEAD:
+		return "DIR_READAHEAD";
+
+	case DIR_TERMINATE:
+		return "DIR_TERMINATE";
+	}
+
+	return "<unknown>";
+}
+
 /**
  * @brief Dump and fsal_staticfsinfo_t to a log
  *
@@ -441,16 +457,24 @@ int display_attrlist(struct display_buffer *dspbuf,
 {
 	int b_left = display_start(dspbuf);
 
+	if (attr->request_mask == 0 && attr->valid_mask == 0 &&
+	    attr->supported == 0)
+		return display_cat(dspbuf, "No attributes");
+
 	if (b_left > 0 && attr->request_mask != 0)
-		b_left = display_printf(dspbuf, "Mask = %08x",
+		b_left = display_printf(dspbuf, "Request Mask=%08x ",
 					(unsigned int) attr->request_mask);
 
 	if (b_left > 0 && attr->valid_mask != 0)
-		b_left = display_printf(dspbuf, "Mask = %08x",
+		b_left = display_printf(dspbuf, "Valid Mask=%08x ",
 					(unsigned int) attr->valid_mask);
 
+	if (b_left > 0 && attr->supported != 0)
+		b_left = display_printf(dspbuf, "Supported Mask=%08x ",
+					(unsigned int) attr->supported);
+
 	if (b_left > 0 && is_obj)
-		b_left = display_printf(dspbuf, " %s",
+		b_left = display_printf(dspbuf, "%s",
 					object_file_type_to_str(attr->type));
 
 	if (b_left > 0 && FSAL_TEST_MASK(attr->valid_mask, ATTR_NUMLINKS))
@@ -498,14 +522,10 @@ void log_attrlist(log_components_t component, log_levels_t level,
 		  const char *reason, struct attrlist *attr, bool is_obj,
 		  char *file, int line, char *function)
 {
-	char str[LOG_BUFF_LEN];
+	char str[LOG_BUFF_LEN] = "\0";
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 
 	(void) display_attrlist(&dspbuf, attr, is_obj);
-
-	if (!isLevel(component, level))
-		return;
-
 
 	DisplayLogComponentLevel(component, file, line, function, level,
 		"%s %s attributes %s",
@@ -676,21 +696,14 @@ fsal_fs_cmpf_fsid(const struct avltree_node *lhs,
 static inline struct fsal_filesystem *
 avltree_inline_fsid_lookup(const struct avltree_node *key)
 {
-	struct avltree_node *node = avl_fsid.root;
-	int res = 0;
+	struct avltree_node *node = avltree_inline_lookup(key, &avl_fsid,
+							  fsal_fs_cmpf_fsid);
 
-	while (node) {
-		res = fsal_fs_cmpf_fsid(node, key);
-		if (res == 0)
-			return avltree_container_of(node,
-						    struct fsal_filesystem,
-						    avl_fsid);
-		if (res > 0)
-			node = node->left;
-		else
-			node = node->right;
-	}
-	return NULL;
+	if (node != NULL)
+		return avltree_container_of(node, struct fsal_filesystem,
+					    avl_fsid);
+	else
+		return NULL;
 }
 
 static inline int
@@ -720,21 +733,14 @@ fsal_fs_cmpf_dev(const struct avltree_node *lhs,
 static inline struct fsal_filesystem *
 avltree_inline_dev_lookup(const struct avltree_node *key)
 {
-	struct avltree_node *node = avl_dev.root;
-	int res = 0;
+	struct avltree_node *node = avltree_inline_lookup(key, &avl_dev,
+							  fsal_fs_cmpf_dev);
 
-	while (node) {
-		res = fsal_fs_cmpf_dev(node, key);
-		if (res == 0)
-			return avltree_container_of(node,
-						    struct fsal_filesystem,
-						    avl_dev);
-		if (res > 0)
-			node = node->left;
-		else
-			node = node->right;
-	}
-	return NULL;
+	if (node != NULL)
+		return avltree_container_of(node, struct fsal_filesystem,
+					    avl_dev);
+	else
+		return NULL;
 }
 
 void remove_fs(struct fsal_filesystem *fs)
@@ -942,19 +948,17 @@ static bool posix_get_fsid(struct fsal_filesystem *fs)
 	struct statfs stat_fs;
 	struct stat mnt_stat;
 #ifdef USE_BLKID
-	char *dev_name = NULL, *uuid_str;
-	struct blkid_struct_dev *dev;
+	char *dev_name;
+	char *uuid_str;
 #endif
 
-	LogFullDebug(COMPONENT_FSAL,
-		     "statfs of %s pathlen %d",
-		     fs->path, fs->pathlen);
+	LogFullDebug(COMPONENT_FSAL, "statfs of %s pathlen %d", fs->path,
+		     fs->pathlen);
 
-	if (statfs(fs->path, &stat_fs) != 0) {
+	if (statfs(fs->path, &stat_fs) != 0)
 		LogCrit(COMPONENT_FSAL,
 			"stat_fs of %s resulted in error %s(%d)",
 			fs->path, strerror(errno), errno);
-	}
 
 #if __FreeBSD__
 	fs->namelen = stat_fs.f_namemax;
@@ -979,66 +983,50 @@ static bool posix_get_fsid(struct fsal_filesystem *fs)
 	}
 
 #ifdef USE_BLKID
+	if (cache == NULL)
+		goto out;
+
 	dev_name = blkid_devno_to_devname(mnt_stat.st_dev);
 
 	if (dev_name == NULL) {
 		LogInfo(COMPONENT_FSAL,
 			"blkid_devno_to_devname of %s failed for dev %d.%d",
-			fs->path,
-			major(mnt_stat.st_dev),
+			fs->path, major(mnt_stat.st_dev),
 			minor(mnt_stat.st_dev));
-		goto no_uuid_no_dev_name;
+		goto out;
 	}
 
-	if (cache == NULL && blkid_get_cache(&cache, NULL) != 0) {
-		LogInfo(COMPONENT_FSAL,
-			"blkid_get_cache of %s failed",
-			fs->path);
-		goto no_uuid;
-	}
-
-	dev = (struct blkid_struct_dev *)blkid_get_dev(cache,
-						       dev_name,
-						       BLKID_DEV_NORMAL);
-
-	if (dev == NULL) {
+	if (blkid_get_dev(cache, dev_name, BLKID_DEV_NORMAL) == NULL) {
 		LogInfo(COMPONENT_FSAL,
 			"blkid_get_dev of %s failed for devname %s",
 			fs->path, dev_name);
-		goto no_uuid;
+		free(dev_name);
+		goto out;
 	}
 
 	uuid_str = blkid_get_tag_value(cache, "UUID", dev_name);
+	free(dev_name);
 
 	if  (uuid_str == NULL) {
-		LogInfo(COMPONENT_FSAL,
-			"blkid_get_tag_value of %s failed",
+		LogInfo(COMPONENT_FSAL, "blkid_get_tag_value of %s failed",
 			fs->path);
-		goto no_uuid;
+		goto out;
 	}
 
 	if (uuid_parse(uuid_str, (char *) &fs->fsid) == -1) {
-		LogInfo(COMPONENT_FSAL,
-			"uuid_parse of %s failed for uuid %s",
+		LogInfo(COMPONENT_FSAL, "uuid_parse of %s failed for uuid %s",
 			fs->path, uuid_str);
 		free(uuid_str);
-		goto no_uuid;
+		goto out;
 	}
 
 	free(uuid_str);
 	fs->fsid_type = FSID_TWO_UINT64;
-	free(dev_name);
 
 	return true;
 
- no_uuid:
-
-	free(dev_name);
-
- no_uuid_no_dev_name:
-
+out:
 #endif
-
 	fs->fsid_type = FSID_TWO_UINT32;
 #if __FreeBSD__
 	fs->fsid.major = (unsigned) stat_fs.f_fsid.val[0];
@@ -1047,7 +1035,6 @@ static bool posix_get_fsid(struct fsal_filesystem *fs)
 	fs->fsid.major = (unsigned) stat_fs.f_fsid.__val[0];
 	fs->fsid.minor = (unsigned) stat_fs.f_fsid.__val[1];
 #endif
-
 	if ((fs->fsid.major == 0) && (fs->fsid.minor == 0)) {
 		fs->fsid.major = fs->dev.major;
 		fs->fsid.minor = fs->dev.minor;
@@ -1271,24 +1258,31 @@ int populate_posix_file_systems(bool force)
 		goto out;
 	}
 
+#ifdef USE_BLKID
+	if (blkid_get_cache(&cache, NULL) != 0)
+		LogInfo(COMPONENT_FSAL, "blkid_get_cache failed");
+#endif
+
 	while ((mnt = getmntent(fp)) != NULL) {
 		if (mnt->mnt_dir == NULL)
 			continue;
 
 		posix_create_file_system(mnt);
 	}
+
 #ifdef USE_BLKID
-	blkid_put_cache(cache);
+	if (cache) {
+		blkid_put_cache(cache);
+		cache = NULL;
+	}
 #endif
 
 	endmntent(fp);
 
 	/* build tree of POSIX file systems */
-	glist_for_each(glist, &posix_file_systems) {
-		posix_find_parent(glist_entry(glist,
-					      struct fsal_filesystem,
+	glist_for_each(glist, &posix_file_systems)
+		posix_find_parent(glist_entry(glist, struct fsal_filesystem,
 					      filesystems));
-	}
 
 	/* show tree */
 	glist_for_each(glist, &posix_file_systems) {
@@ -1298,7 +1292,6 @@ int populate_posix_file_systems(bool force)
 	}
 
  out:
-
 	PTHREAD_RWLOCK_unlock(&fs_lock);
 	return retval;
 }

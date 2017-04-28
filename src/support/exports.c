@@ -315,7 +315,7 @@ void LogClientListEntry(log_levels_t level,
 			char *tag,
 			exportlist_client_entry_t *entry)
 {
-	char perms[1024];
+	char perms[1024] = "\0";
 	struct display_buffer dspbuf = {sizeof(perms), perms, perms};
 	char addr[INET6_ADDRSTRLEN];
 	char *paddr = addr;
@@ -1005,7 +1005,7 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 {
 	struct gsh_export *export = self_struct, *probe_exp;
 	int errcnt = 0;
-	char perms[1024];
+	char perms[1024] = "\0";
 	struct display_buffer dspbuf = {sizeof(perms), perms, perms};
 
 	LogFullDebug(COMPONENT_EXPORT, "Processing %p", export);
@@ -1014,7 +1014,7 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 	if (export->export_perms.options & EXPORT_OPTION_NFSV4) {
 		if (export->pseudopath == NULL) {
 			LogCrit(COMPONENT_CONFIG,
-				"Exporting to NFSv4 but not Pseudo path defined");
+				"Exporting to NFSv4 but no Pseudo path defined");
 			err_type->invalid = true;
 			errcnt++;
 			return errcnt;
@@ -1028,6 +1028,18 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 			return errcnt;
 		}
 	}
+
+	/* If we are using mount_path_pseudo = true we MUST have a Pseudo Path.
+	 */
+	if (nfs_param.core_param.mount_path_pseudo &&
+	    export->pseudopath == NULL) {
+		LogCrit(COMPONENT_CONFIG,
+			"NFS_CORE_PARAM mount_path_pseudo is TRUE but no Pseudo path defined");
+		err_type->invalid = true;
+		errcnt++;
+		return errcnt;
+	}
+
 	if (export->pseudopath != NULL &&
 	    export->pseudopath[0] != '/') {
 		LogCrit(COMPONENT_CONFIG,
@@ -1050,7 +1062,7 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 		if ((export->export_perms.options &
 		     EXPORT_OPTION_PROTOCOLS) != EXPORT_OPTION_NFSV4) {
 			LogCrit(COMPONENT_CONFIG,
-				"Export id 0 must indicate Protocols=4");
+				"Export id 0 must include 4 in Protocols");
 			err_type->invalid = true;
 			errcnt++;
 		}
@@ -1353,7 +1365,7 @@ static void export_display(const char *step, void *node,
 			   void *link_mem, void *self_struct)
 {
 	struct gsh_export *export = self_struct;
-	char perms[1024];
+	char perms[1024] = "\0";
 	struct display_buffer dspbuf = {sizeof(perms), perms, perms};
 
 	(void) StrExportOptions(&dspbuf, &export->export_perms);
@@ -1414,7 +1426,7 @@ static int export_defaults_commit(void *node, void *link_mem,
 				  void *self_struct,
 				  struct config_error_type *err_type)
 {
-	char perms[1024];
+	char perms[1024] = "\0";
 	struct display_buffer dspbuf = {sizeof(perms), perms, perms};
 
 	(void) StrExportOptions(&dspbuf, &export_opt_cfg.conf);
@@ -1440,7 +1452,7 @@ static void export_defaults_display(const char *step, void *node,
 				    void *link_mem, void *self_struct)
 {
 	struct export_perms *defaults = self_struct;
-	char perms[1024];
+	char perms[1024] = "\0";
 	struct display_buffer dspbuf = {sizeof(perms), perms, perms};
 
 	(void) StrExportOptions(&dspbuf, defaults);
@@ -2600,7 +2612,7 @@ bool export_check_security(struct svc_req *req)
 		     EXPORT_OPTION_AUTH_NONE) == 0) {
 			LogInfo(COMPONENT_EXPORT,
 				"Export %s does not support AUTH_NONE",
-				op_ctx->ctx_export->fullpath);
+				op_ctx_export_path(op_ctx->ctx_export));
 			return false;
 		}
 		break;
@@ -2610,7 +2622,7 @@ bool export_check_security(struct svc_req *req)
 		     EXPORT_OPTION_AUTH_UNIX) == 0) {
 			LogInfo(COMPONENT_EXPORT,
 				"Export %s does not support AUTH_UNIX",
-				op_ctx->ctx_export->fullpath);
+				op_ctx_export_path(op_ctx->ctx_export));
 			return false;
 		}
 		break;
@@ -2623,7 +2635,7 @@ bool export_check_security(struct svc_req *req)
 				 EXPORT_OPTION_RPCSEC_GSS_PRIV)) == 0) {
 			LogInfo(COMPONENT_EXPORT,
 				"Export %s does not support RPCSEC_GSS",
-				op_ctx->ctx_export->fullpath);
+				op_ctx_export_path(op_ctx->ctx_export));
 			return false;
 		} else {
 			struct rpc_gss_cred *gc = (struct rpc_gss_cred *)
@@ -2638,7 +2650,8 @@ bool export_check_security(struct svc_req *req)
 				     EXPORT_OPTION_RPCSEC_GSS_NONE) == 0) {
 					LogInfo(COMPONENT_EXPORT,
 						"Export %s does not support RPCSEC_GSS_SVC_NONE",
-						op_ctx->ctx_export->fullpath);
+						op_ctx_export_path(
+							op_ctx->ctx_export));
 					return false;
 				}
 				break;
@@ -2648,7 +2661,8 @@ bool export_check_security(struct svc_req *req)
 				     EXPORT_OPTION_RPCSEC_GSS_INTG) == 0) {
 					LogInfo(COMPONENT_EXPORT,
 						"Export %s does not support RPCSEC_GSS_SVC_INTEGRITY",
-						op_ctx->ctx_export->fullpath);
+						op_ctx_export_path(
+							op_ctx->ctx_export));
 					return false;
 				}
 				break;
@@ -2658,7 +2672,8 @@ bool export_check_security(struct svc_req *req)
 				     EXPORT_OPTION_RPCSEC_GSS_PRIV) == 0) {
 					LogInfo(COMPONENT_EXPORT,
 						"Export %s does not support RPCSEC_GSS_SVC_PRIVACY",
-						op_ctx->ctx_export->fullpath);
+						op_ctx_export_path(
+							op_ctx->ctx_export));
 					return false;
 				}
 				break;
@@ -2666,7 +2681,7 @@ bool export_check_security(struct svc_req *req)
 			default:
 				LogInfo(COMPONENT_EXPORT,
 					"Export %s does not support unknown RPCSEC_GSS_SVC %d",
-					op_ctx->ctx_export->fullpath,
+					op_ctx_export_path(op_ctx->ctx_export),
 					(int)svc);
 				return false;
 			}
@@ -2676,7 +2691,7 @@ bool export_check_security(struct svc_req *req)
 	default:
 		LogInfo(COMPONENT_EXPORT,
 			"Export %s does not support unknown oa_flavor %d",
-			op_ctx->ctx_export->fullpath,
+			op_ctx_export_path(op_ctx->ctx_export),
 			(int)req->rq_msg.cb_cred.oa_flavor);
 		return false;
 	}
@@ -2835,9 +2850,9 @@ void export_check_access(void)
 		(void) sprint_sockip(hostaddr,
 				     ipstring, sizeof(ipstring));
 		LogMidDebug(COMPONENT_EXPORT,
-			    "Check for address %s for export id %u fullpath %s",
+			    "Check for address %s for export id %u path %s",
 			    ipstring, op_ctx->ctx_export->export_id,
-			    op_ctx->ctx_export->fullpath);
+			    op_ctx_export_path(op_ctx->ctx_export));
 	}
 
 	/* Does the client match anyone on the client list? */
@@ -2916,7 +2931,7 @@ void export_check_access(void)
 	op_ctx->export_perms->set |= export_opt.def.set;
 
 	if (isMidDebug(COMPONENT_EXPORT)) {
-		char perms[1024];
+		char perms[1024] = "\0";
 		struct display_buffer dspbuf = {sizeof(perms), perms, perms};
 
 		if (client != NULL) {

@@ -160,7 +160,7 @@ static fsal_status_t check_open_permission(struct fsal_obj_handle *obj,
 	 *       because somehow the owner changed.
 	 *
 	 */
-	status = fsal_access(obj, FSAL_EXECUTE_ACCESS, NULL, NULL);
+	status = fsal_access(obj, FSAL_EXECUTE_ACCESS);
 
 	if (!FSAL_IS_ERROR(status))
 		*reason = "";
@@ -194,7 +194,8 @@ static fsal_status_t fsal_check_setattr_perms(struct fsal_obj_handle *obj,
 
 	/* Shortcut, if current user is root, then we can just bail out with
 	 * success. */
-	if (creds->caller_uid == 0) {
+	if (op_ctx->fsal_export->exp_ops.is_superuser(op_ctx->fsal_export,
+						      creds)) {
 		note = " (Ok for root user)";
 		goto out;
 	}
@@ -392,7 +393,7 @@ fsal_status_t open2_by_name(struct fsal_obj_handle *in_obj,
 	}
 
 	/* Check directory permission for LOOKUP */
-	status = fsal_access(in_obj, FSAL_EXECUTE_ACCESS, NULL, NULL);
+	status = fsal_access(in_obj, FSAL_EXECUTE_ACCESS);
 	if (FSAL_IS_ERROR(status))
 		return status;
 
@@ -471,6 +472,7 @@ fsal_status_t fsal_setattr(struct fsal_obj_handle *obj, bool bypass,
 	fsal_status_t status = { 0, 0 };
 	const struct user_cred *creds = op_ctx->creds;
 	struct attrlist current;
+	bool is_superuser;
 
 	if ((attr->valid_mask & (ATTR_SIZE | ATTR4_SPACE_RESERVED))
 	     && (obj->type != REGULAR_FILE)) {
@@ -496,6 +498,8 @@ fsal_status_t fsal_setattr(struct fsal_obj_handle *obj, bool bypass,
 	if (FSAL_IS_ERROR(status))
 		return status;
 
+	is_superuser = op_ctx->fsal_export->exp_ops.is_superuser(
+					op_ctx->fsal_export, creds);
 	/* Test for the following condition from chown(2):
 	 *
 	 *     When the owner or group of an executable file are changed by an
@@ -507,7 +511,7 @@ fsal_status_t fsal_setattr(struct fsal_obj_handle *obj, bool bypass,
 	 *     mandatory locking, and is not cleared by a chown().
 	 *
 	 */
-	if (creds->caller_uid != 0 &&
+	if (!is_superuser &&
 	    (FSAL_TEST_MASK(attr->valid_mask, ATTR_OWNER) ||
 	     FSAL_TEST_MASK(attr->valid_mask, ATTR_GROUP)) &&
 	    ((current.mode & (S_IXOTH | S_IXUSR | S_IXGRP)) != 0) &&
@@ -545,7 +549,7 @@ fsal_status_t fsal_setattr(struct fsal_obj_handle *obj, bool bypass,
 	 * We test the actual mode being set before testing for group
 	 * membership since that is a bit more expensive.
 	 */
-	if (creds->caller_uid != 0 &&
+	if (!is_superuser &&
 	    FSAL_TEST_MASK(attr->valid_mask, ATTR_MODE) &&
 	    (attr->mode & S_ISGID) != 0 &&
 	    fsal_not_in_group_list(current.group)) {
@@ -573,34 +577,12 @@ fsal_status_t fsal_setattr(struct fsal_obj_handle *obj, bool bypass,
 		}
 	}
 
-	if (creds->caller_uid != 0) {
+	if (!is_superuser)  {
 		/* Done with the current attrs */
 		fsal_release_attrs(&current);
 	}
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
-}
-
-/**
- *
- * @brief Checks the permissions on an object
- *
- * This function returns success if the supplied credentials possess
- * permission required to meet the specified access.
- *
- * @param[in]  obj         The object to be checked
- * @param[in]  access_type The kind of access to be checked
- *
- * @return FSAL status
- *
- */
-fsal_status_t fsal_access(struct fsal_obj_handle *obj,
-			  fsal_accessflags_t access_type,
-			  fsal_accessflags_t *allowed,
-			  fsal_accessflags_t *denied)
-{
-	return
-	    obj->obj_ops.test_access(obj, access_type, allowed, denied, false);
 }
 
 /**
@@ -655,8 +637,7 @@ fsal_status_t fsal_link(struct fsal_obj_handle *obj,
 			FSAL_MODE_MASK_SET(FSAL_W_OK) |
 			FSAL_MODE_MASK_SET(FSAL_X_OK) |
 			FSAL_ACE4_MASK_SET(FSAL_ACE_PERM_EXECUTE) |
-			FSAL_ACE4_MASK_SET(FSAL_ACE_PERM_ADD_FILE),
-			NULL, NULL);
+			FSAL_ACE4_MASK_SET(FSAL_ACE_PERM_ADD_FILE));
 
 		if (FSAL_IS_ERROR(status))
 			return status;
@@ -697,7 +678,7 @@ fsal_status_t fsal_lookup(struct fsal_obj_handle *parent,
 		return fsalstat(ERR_FSAL_NOTDIR, 0);
 	}
 
-	fsal_status = fsal_access(parent, access_mask, NULL, NULL);
+	fsal_status = fsal_access(parent, access_mask);
 	if (FSAL_IS_ERROR(fsal_status))
 		return fsal_status;
 
@@ -876,10 +857,6 @@ fsal_status_t fsal_create(struct fsal_obj_handle *parent,
 
 	case SOCKET_FILE:
 	case FIFO_FILE:
-		status = parent->obj_ops.mknode(parent, name, type,
-						attrs, obj, attrs_out);
-		break;
-
 	case BLOCK_FILE:
 	case CHARACTER_FILE:
 		status = parent->obj_ops.mknode(parent, name, type,
@@ -952,7 +929,9 @@ setattrs:
                  * setgid bit. Clear the OWNER and GROUP attributes for
                  * create requests for non-root users.
 		 */
-		if (type != SYMBOLIC_LINK && op_ctx->creds->caller_uid != 0) {
+		if (type != SYMBOLIC_LINK &&
+		    !op_ctx->fsal_export->exp_ops.is_superuser(
+					op_ctx->fsal_export, op_ctx->creds)) {
 			FSAL_UNSET_MASK(attrs->valid_mask,
 					ATTR_OWNER|ATTR_GROUP);
 		}
@@ -1289,14 +1268,15 @@ fsal_status_t fsal_rdwr(struct fsal_obj_handle *obj,
 struct fsal_populate_cb_state {
 	struct fsal_obj_handle *directory;
 	fsal_status_t *status;
-	fsal_getattr_cb_t cb;
-	void *opaque;
+	helper_readdir_cb cb;
+	fsal_cookie_t last_cookie;
 	enum cb_state cb_state;
 	unsigned int *cb_nfound;
 	attrmask_t attrmask;
+	struct fsal_readdir_cb_parms cb_parms;
 };
 
-static bool
+static enum fsal_dir_result
 populate_dirent(const char *name,
 		struct fsal_obj_handle *obj,
 		struct attrlist *attrs,
@@ -1305,12 +1285,13 @@ populate_dirent(const char *name,
 {
 	struct fsal_populate_cb_state *state =
 	    (struct fsal_populate_cb_state *)dir_state;
-	struct fsal_readdir_cb_parms cb_parms = { state->opaque, name,
-		true, true };
 	fsal_status_t status = {0, 0};
-	bool retval = true;
+	enum fsal_dir_result retval;
 
-	status.major = state->cb(&cb_parms, obj, attrs, attrs->fileid,
+	retval = DIR_CONTINUE;
+	state->cb_parms.name = name;
+
+	status.major = state->cb(&state->cb_parms, obj, attrs, attrs->fileid,
 				 cookie, state->cb_state);
 
 	if (status.major == ERR_FSAL_CROSS_JUNCTION) {
@@ -1345,9 +1326,10 @@ populate_dirent(const char *name,
 					 fsal_err_txt(status));
 				/* Need to signal problem to callback */
 				state->cb_state = CB_PROBLEM;
-				(void) state->cb(&cb_parms, NULL, NULL, 0,
-						 cookie, state->cb_state);
-				retval = false;
+				(void) state->cb(&state->cb_parms, NULL, NULL,
+						 0, cookie, state->cb_state);
+				/* Protocol layers NEVER do readahead. */
+				retval = DIR_TERMINATE;
 				goto out;
 			}
 		} else {
@@ -1355,9 +1337,10 @@ populate_dirent(const char *name,
 				 "A junction became stale");
 			/* Need to signal problem to callback */
 			state->cb_state = CB_PROBLEM;
-			(void) state->cb(&cb_parms, NULL, NULL, 0, cookie,
-					 state->cb_state);
-			retval = false;
+			(void) state->cb(&state->cb_parms, NULL, NULL, 0,
+					 cookie, state->cb_state);
+			/* Protocol layers NEVER do readahead. */
+			retval = DIR_TERMINATE;
 			goto out;
 		}
 
@@ -1375,7 +1358,7 @@ populate_dirent(const char *name,
 		if (!FSAL_IS_ERROR(status)) {
 			/* Now call the callback again with that. */
 			state->cb_state = CB_JUNCTION;
-			status.major = state->cb(&cb_parms,
+			status.major = state->cb(&state->cb_parms,
 						 junction_obj,
 						 &attrs2,
 						 junction_export
@@ -1395,8 +1378,9 @@ populate_dirent(const char *name,
 		put_gsh_export(junction_export);
 	}
 
-	if (!cb_parms.in_result) {
-		retval = false;
+	if (!state->cb_parms.in_result) {
+		/* Protocol layers NEVER do readahead. */
+		retval = DIR_TERMINATE;
 		goto out;
 	}
 
@@ -1434,11 +1418,10 @@ fsal_status_t fsal_readdir(struct fsal_obj_handle *directory,
 		    unsigned int *nbfound,
 		    bool *eod_met,
 		    attrmask_t attrmask,
-		    fsal_getattr_cb_t cb,
+		    helper_readdir_cb cb,
 		    void *opaque)
 {
 	fsal_status_t fsal_status = {0, 0};
-	fsal_status_t attr_status = {0, 0};
 	fsal_status_t cb_status = {0, 0};
 	struct fsal_populate_cb_state state;
 
@@ -1469,7 +1452,7 @@ fsal_status_t fsal_readdir(struct fsal_obj_handle *directory,
 		access_mask_attr |= FSAL_ACE4_MASK_SET(FSAL_ACE_PERM_READ_ACL);
 	}
 
-	fsal_status = fsal_access(directory, access_mask, NULL, NULL);
+	fsal_status = fsal_access(directory, access_mask);
 	if (FSAL_IS_ERROR(fsal_status)) {
 		LogFullDebug(COMPONENT_NFS_READDIR,
 			     "permission check for directory status=%s",
@@ -1478,18 +1461,25 @@ fsal_status_t fsal_readdir(struct fsal_obj_handle *directory,
 	}
 	if (attrmask != 0) {
 		/* Check for access permission to get attributes */
-		attr_status = fsal_access(directory, access_mask_attr, NULL,
-					  NULL);
+		fsal_status_t attr_status = fsal_access(directory,
+							access_mask_attr);
 		if (FSAL_IS_ERROR(attr_status))
 			LogFullDebug(COMPONENT_NFS_READDIR,
 				     "permission check for attributes status=%s",
-				     fsal_err_txt(fsal_status));
+				     fsal_err_txt(attr_status));
+		state.cb_parms.attr_allowed = !FSAL_IS_ERROR(attr_status);
+	} else {
+		/* No attributes requested. */
+		state.cb_parms.attr_allowed = false;
 	}
 
 	state.directory = directory;
 	state.status = &cb_status;
 	state.cb = cb;
-	state.opaque = opaque;
+	state.last_cookie = 0;
+	state.cb_parms.opaque = opaque;
+	state.cb_parms.in_result = true;
+	state.cb_parms.name = NULL;
 	state.cb_state = CB_ORIGINAL;
 	state.cb_nfound = nbfound;
 	state.attrmask = attrmask;

@@ -459,7 +459,7 @@ static fsal_aclsupp_t fs_acl_support(struct fsal_export *export_pub)
 
 static attrmask_t fs_supported_attrs(struct fsal_export *export_pub)
 {
-	return supported_attributes;
+	return CEPH_SUPPORTED_ATTRS;
 }
 
 /**
@@ -522,6 +522,7 @@ void export_ops_init(struct export_ops *ops)
 	ops->fs_umask = fs_umask;
 	ops->fs_xattr_access_rights = fs_xattr_access_rights;
 	ops->alloc_state = ceph_alloc_state;
+	ops->free_state = ceph_free_state;
 #ifdef CEPH_PNFS
 	export_ops_pnfs(ops);
 #endif				/* CEPH_PNFS */

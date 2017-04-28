@@ -733,8 +733,6 @@ static const char *config_type_str(enum config_type type)
 		return "CONFIG_BOOLBIT";
 	case CONFIG_IP_ADDR:
 		return "CONFIG_IP_ADDR";
-	case CONFIG_INET_PORT:
-		return "CONFIG_INET_PORT";
 	case CONFIG_BLOCK:
 		return "CONFIG_BLOCK";
 	case CONFIG_PROC:
@@ -861,9 +859,6 @@ static bool do_block_init(struct config_node *blk_node,
 						  strerror(errno));
 				errors++;
 			}
-			break;
-		case CONFIG_INET_PORT:
-			*(uint16_t *)param_addr = htons(item->u.ui16.def);
 			break;
 		case CONFIG_BLOCK:
 			(void) item->u.blk.init(NULL, param_addr);
@@ -1053,7 +1048,7 @@ static int do_block_load(struct config_node *blk,
 				break;
 			case CONFIG_UINT64:
 				if (convert_number(term_node, item,
-						   &num64, err_type))
+						   &num64, err_type)) {
 					*(uint64_t *)param_addr = num64;
 					if (item->flags & CONFIG_MARK_SET) {
 						void *mask_addr;
@@ -1064,6 +1059,7 @@ static int do_block_load(struct config_node *blk,
 						*(uint32_t *)mask_addr
 						|= item->u.ui64.bit;
 					}
+				}
 				break;
 			case CONFIG_ANON_ID:
 				if (convert_number(term_node, item,
@@ -1193,12 +1189,6 @@ static int do_block_load(struct config_node *blk,
 				convert_inet_addr(term_node, item,
 						  (sockaddr_t *)param_addr,
 						  err_type);
-				break;
-			case CONFIG_INET_PORT:
-				if (convert_number(term_node, item,
-						   &num64, err_type))
-					*(uint16_t *)param_addr =
-						htons((uint16_t)num64);
 				break;
 			case CONFIG_BLOCK:
 				if (!proc_block(node, item, param_addr,

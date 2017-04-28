@@ -71,9 +71,12 @@ static void release(struct fsal_obj_handle *obj_hdl)
  *
  * @return FSAL status codes.
  */
-static fsal_status_t lookup(struct fsal_obj_handle *dir_hdl,
-			const char *path, struct fsal_obj_handle **obj_hdl,
-			struct attrlist *attrs_out)
+
+static fsal_status_t lookup_int(struct fsal_obj_handle *dir_hdl,
+				const char *path,
+				struct fsal_obj_handle **obj_hdl,
+				struct attrlist *attrs_out,
+				uint32_t flags)
 {
 	int rc;
 	struct stat st;
@@ -92,7 +95,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_hdl,
 	/* XXX presently, we can only fake attrs--maybe rgw_lookup should
 	 * take struct stat pointer OUT as libcephfs' does */
 	rc = rgw_lookup(export->rgw_fs, dir->rgw_fh, path, &rgw_fh,
-			RGW_LOOKUP_FLAG_NONE);
+			flags);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -115,6 +118,14 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_hdl,
 	return fsalstat(0, 0);
 }
 
+static fsal_status_t lookup(struct fsal_obj_handle *dir_hdl,
+			const char *path, struct fsal_obj_handle **obj_hdl,
+			struct attrlist *attrs_out)
+{
+	return lookup_int(dir_hdl, path, obj_hdl, attrs_out,
+			RGW_LOOKUP_FLAG_NONE);
+}
+
 struct rgw_cb_arg {
 	fsal_readdir_cb cb;
 	void *fsal_arg;
@@ -122,25 +133,31 @@ struct rgw_cb_arg {
 	attrmask_t attrmask;
 };
 
-static bool rgw_cb(const char *name, void *arg, uint64_t offset)
+static bool rgw_cb(const char *name, void *arg, uint64_t offset, uint32_t flags)
 {
 	struct rgw_cb_arg *rgw_cb_arg = arg;
 	struct fsal_obj_handle *obj;
 	fsal_status_t status;
 	struct attrlist attrs;
-	bool cb_rc;
+	enum fsal_dir_result cb_rc;
 
 	fsal_prepare_attrs(&attrs, rgw_cb_arg->attrmask);
 
-	status = lookup(rgw_cb_arg->dir_hdl, name, &obj, &attrs);
+	/* rgw_lookup now accepts type hints */
+	status = lookup_int(rgw_cb_arg->dir_hdl, name, &obj, &attrs,
+			RGW_LOOKUP_FLAG_RCB|
+			(flags & (RGW_LOOKUP_FLAG_DIR|RGW_LOOKUP_FLAG_FILE)));
 	if (FSAL_IS_ERROR(status))
 		return false;
 
+	/** @todo FSF - when rgw gains mark capability, need to change this
+	 *              code...
+	 */
 	cb_rc = rgw_cb_arg->cb(name, obj, &attrs, rgw_cb_arg->fsal_arg, offset);
 
 	fsal_release_attrs(&attrs);
 
-	return cb_rc;
+	return cb_rc <= DIR_READAHEAD;
 }
 
 /**
@@ -179,6 +196,8 @@ static fsal_status_t rgw_fsal_readdir(struct fsal_obj_handle *dir_hdl,
 	LogFullDebug(COMPONENT_FSAL,
 		"%s enter dir_hdl %p", __func__, dir_hdl);
 
+	rc = 0;
+	*eof = false;
 	rc = rgw_readdir(export->rgw_fs, dir->rgw_fh, &r_whence, rgw_cb,
 			&rgw_cb_arg, eof, RGW_READDIR_FLAG_NONE);
 	if (rc < 0)
@@ -395,11 +414,11 @@ fsal_status_t rgw_fsal_setattr2(struct fsal_obj_handle *obj_hdl,
 	LogFullDebug(COMPONENT_FSAL,
 		"%s enter obj_hdl %p state %p", __func__, obj_hdl, state);
 
-	if (attrib_set->valid_mask & ~rgw_settable_attributes) {
+	if (attrib_set->valid_mask & ~RGW_SETTABLE_ATTRIBUTES) {
 		LogDebug(COMPONENT_FSAL,
 			"bad mask %"PRIx64" not settable %"PRIx64,
 			attrib_set->valid_mask,
-			attrib_set->valid_mask & ~rgw_settable_attributes);
+			attrib_set->valid_mask & ~RGW_SETTABLE_ATTRIBUTES);
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 

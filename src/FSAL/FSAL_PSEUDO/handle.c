@@ -78,23 +78,10 @@ pseudofs_i_cmpf(const struct avltree_node *lhs,
 }
 
 static inline struct avltree_node *
-avltree_inline_name_lookup(
-	const struct avltree_node *key,
-	const struct avltree *tree)
+avltree_inline_name_lookup(const struct avltree_node *key,
+			   const struct avltree *tree)
 {
-	struct avltree_node *node = tree->root;
-	int res = 0;
-
-	while (node) {
-		res = pseudofs_n_cmpf(node, key);
-		if (res == 0)
-			return node;
-		if (res > 0)
-			node = node->left;
-		else
-			node = node->right;
-	}
-	return NULL;
+	return avltree_inline_lookup(key, tree, pseudofs_n_cmpf);
 }
 
 /**
@@ -190,7 +177,7 @@ static struct pseudo_fsal_obj_handle
 			struct attrlist *attrs)
 {
 	struct pseudo_fsal_obj_handle *hdl;
-	char path[MAXPATHLEN];
+	char path[MAXPATHLEN] = "\0";
 	struct display_buffer pathbuf = {sizeof(path), path, path};
 	int rc;
 
@@ -275,7 +262,8 @@ static struct pseudo_fsal_obj_handle
 	hdl->attributes.rawdev.minor = 0;
 
 	/* Set the mask at the end. */
-	hdl->attributes.valid_mask = ATTRS_POSIX;
+	hdl->attributes.valid_mask = PSEUDO_SUPPORTED_ATTRS;
+	hdl->attributes.supported = PSEUDO_SUPPORTED_ATTRS;
 
 	fsal_obj_handle_init(&hdl->obj_handle, exp_hdl, DIRECTORY);
 	pseudofs_handle_ops_init(&hdl->obj_handle.obj_ops);
@@ -461,7 +449,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 	struct avltree_node *node;
 	fsal_cookie_t seekloc;
 	struct attrlist attrs;
-	bool cb_rc;
+	enum fsal_dir_result cb_rc;
 
 	if (whence != NULL)
 		seekloc = *whence;
@@ -499,11 +487,12 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 		fsal_copy_attrs(&attrs, &hdl->attributes, false);
 
 		cb_rc = cb(hdl->name, &hdl->obj_handle, &attrs,
-			   dir_state, hdl->index);
+			   dir_state, hdl->index + 1);
 
 		fsal_release_attrs(&attrs);
 
-		if (!cb_rc) {
+		/* Read ahead not supported by this FSAL. */
+		if (cb_rc >= DIR_READAHEAD) {
 			*eof = false;
 			break;
 		}

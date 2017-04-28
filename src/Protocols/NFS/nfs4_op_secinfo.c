@@ -61,7 +61,9 @@ int nfs4_op_secinfo(struct nfs_argop4 *op, compound_data_t *data,
 	char *secinfo_fh_name = NULL;
 	fsal_status_t fsal_status = {0, 0};
 	struct fsal_obj_handle *obj_src = NULL;
+#ifdef _HAVE_GSSAPI
 	sec_oid4 v5oid = { krb5oid.length, (char *)krb5oid.elements };
+#endif /* _HAVE_GSSAPI */
 	int num_entry = 0;
 	struct export_perms save_export_perms = { 0, };
 	struct gsh_export *saved_gsh_export = NULL;
@@ -109,9 +111,9 @@ int nfs4_op_secinfo(struct nfs_argop4 *op, compound_data_t *data,
 		if (!export_ready(junction_export)) {
 			/* Export has gone bad. */
 			LogDebug(COMPONENT_EXPORT,
-				 "NFS4ERR_STALE On Export_Id %d Path %s",
+				 "NFS4ERR_STALE On Export_Id %d Pseudo %s",
 				 junction_export->export_id,
-				 junction_export->fullpath);
+				 junction_export->pseudopath);
 			res_SECINFO4->status = NFS4ERR_STALE;
 			PTHREAD_RWLOCK_unlock(&obj_src->state_hdl->state_lock);
 			goto out;
@@ -138,9 +140,9 @@ int nfs4_op_secinfo(struct nfs_argop4 *op, compound_data_t *data,
 			 * hide it. It was not visible in READDIR response.
 			 */
 			LogDebug(COMPONENT_EXPORT,
-				 "NFS4ERR_ACCESS Hiding Export_Id %d Path %s with NFS4ERR_NOENT",
+				 "NFS4ERR_ACCESS Hiding Export_Id %d Pseudo %s with NFS4ERR_NOENT",
 				 op_ctx->ctx_export->export_id,
-				 op_ctx->ctx_export->fullpath);
+				 op_ctx->ctx_export->pseudopath);
 			res_SECINFO4->status = NFS4ERR_NOENT;
 			goto out;
 		}
@@ -154,7 +156,7 @@ int nfs4_op_secinfo(struct nfs_argop4 *op, compound_data_t *data,
 		if (FSAL_IS_ERROR(fsal_status)) {
 			LogMajor(COMPONENT_EXPORT,
 				 "PSEUDO FS JUNCTION TRAVERSAL: Failed to get root for %s, id=%d, status = %s",
-				 op_ctx->ctx_export->fullpath,
+				 op_ctx->ctx_export->pseudopath,
 				 op_ctx->ctx_export->export_id,
 				 fsal_err_txt(fsal_status));
 
@@ -164,7 +166,7 @@ int nfs4_op_secinfo(struct nfs_argop4 *op, compound_data_t *data,
 
 		LogDebug(COMPONENT_EXPORT,
 			 "PSEUDO FS JUNCTION TRAVERSAL: Crossed to %s, id=%d for name=%s",
-			 op_ctx->ctx_export->fullpath,
+			 op_ctx->ctx_export->pseudopath,
 			 op_ctx->ctx_export->export_id,
 			 secinfo_fh_name);
 
@@ -207,6 +209,7 @@ int nfs4_op_secinfo(struct nfs_argop4 *op, compound_data_t *data,
 	int idx = 0;
 
 	/* List the security flavors in the order we prefer */
+#ifdef _HAVE_GSSAPI
 	if (op_ctx->export_perms->options &
 	    EXPORT_OPTION_RPCSEC_GSS_PRIV) {
 		res_SECINFO4->SECINFO4res_u.resok4.SECINFO4resok_val[idx]
@@ -242,6 +245,7 @@ int nfs4_op_secinfo(struct nfs_argop4 *op, compound_data_t *data,
 		res_SECINFO4->SECINFO4res_u.resok4.SECINFO4resok_val[idx++]
 		    .secinfo4_u.flavor_info.oid = v5oid;
 	}
+#endif /* _HAVE_GSSAPI */
 
 	if (op_ctx->export_perms->options & EXPORT_OPTION_AUTH_UNIX)
 		res_SECINFO4->SECINFO4res_u.resok4.SECINFO4resok_val[idx++]

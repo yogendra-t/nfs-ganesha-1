@@ -366,7 +366,8 @@ nfsstat4 nfs_req_creds(struct svc_req *req)
 	    ((op_ctx->export_perms->options &
 	      EXPORT_OPTION_ALL_ANONYMOUS) != 0) ||
 	    ((op_ctx->export_perms->options & EXPORT_OPTION_ROOT_SQUASH) != 0 &&
-	      op_ctx->original_creds.caller_uid == 0)) {
+	      op_ctx->fsal_export->exp_ops.is_superuser(op_ctx->fsal_export,
+					      &op_ctx->original_creds))) {
 		/* Squash uid, gid, and discard groups */
 		op_ctx->creds->caller_uid =
 					op_ctx->export_perms->anonymous_uid;
@@ -382,7 +383,8 @@ nfsstat4 nfs_req_creds(struct svc_req *req)
 		return NFS4_OK;
 	} else if ((op_ctx->export_perms->options &
 		    EXPORT_OPTION_ROOT_ID_SQUASH) != 0 &&
-		   op_ctx->original_creds.caller_uid == 0) {
+		   op_ctx->fsal_export->exp_ops.is_superuser(
+			op_ctx->fsal_export, &op_ctx->original_creds)) {
 		/* Only squash root id, leave gid and groups alone for now */
 		op_ctx->creds->caller_uid =
 					op_ctx->export_perms->anonymous_uid;
@@ -559,7 +561,7 @@ nfsstat4 nfs4_export_check_access(struct svc_req *req)
 		LogInfoAlt(COMPONENT_NFS_V4, COMPONENT_EXPORT,
 			"Access not allowed on Export_Id %d %s for client %s",
 			op_ctx->ctx_export->export_id,
-			op_ctx->ctx_export->fullpath,
+			op_ctx->ctx_export->pseudopath,
 			op_ctx->client
 				? op_ctx->client->hostaddr_str
 				: "unknown client");
@@ -571,7 +573,7 @@ nfsstat4 nfs4_export_check_access(struct svc_req *req)
 		LogInfoAlt(COMPONENT_NFS_V4, COMPONENT_EXPORT,
 			"NFS4 not allowed on Export_Id %d %s for client %s",
 			op_ctx->ctx_export->export_id,
-			op_ctx->ctx_export->fullpath,
+			op_ctx->ctx_export->pseudopath,
 			op_ctx->client
 				? op_ctx->client->hostaddr_str
 				: "unknown client");
@@ -590,7 +592,7 @@ nfsstat4 nfs4_export_check_access(struct svc_req *req)
 			"NFS4 over %s not allowed on Export_Id %d %s for client %s",
 			xprt_type_to_str(xprt_type),
 			op_ctx->ctx_export->export_id,
-			op_ctx->ctx_export->fullpath,
+			op_ctx->ctx_export->pseudopath,
 			op_ctx->client
 				? op_ctx->client->hostaddr_str
 				: "unknown client");
@@ -604,7 +606,7 @@ nfsstat4 nfs4_export_check_access(struct svc_req *req)
 		LogInfoAlt(COMPONENT_NFS_V4, COMPONENT_EXPORT,
 			"Non-reserved Port %d is not allowed on Export_Id %d %s for client %s",
 			port, op_ctx->ctx_export->export_id,
-			op_ctx->ctx_export->fullpath,
+			op_ctx->ctx_export->pseudopath,
 			op_ctx->client
 				? op_ctx->client->hostaddr_str
 				: "unknown client");
@@ -616,7 +618,7 @@ nfsstat4 nfs4_export_check_access(struct svc_req *req)
 		LogInfoAlt(COMPONENT_NFS_V4, COMPONENT_EXPORT,
 			"NFS4 auth not allowed on Export_Id %d %s for client %s",
 			op_ctx->ctx_export->export_id,
-			op_ctx->ctx_export->fullpath,
+			op_ctx->ctx_export->pseudopath,
 			op_ctx->client
 				? op_ctx->client->hostaddr_str
 				: "unknown client");

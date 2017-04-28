@@ -1,7 +1,7 @@
 /*
  * vim:noexpandtab:shiftwidth=8:tabstop=8:
  *
- * Copyright 2015-2016 Red Hat, Inc. and/or its affiliates.
+ * Copyright 2015-2017 Red Hat, Inc. and/or its affiliates.
  * Author: Daniel Gryniewicz <dang@redhat.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -459,6 +459,8 @@ static fsal_status_t mdc_open2_by_name(mdcache_entry_t *mdc_parent,
 	mdcache_entry_t *entry;
 	struct fsal_obj_handle *sub_handle;
 
+	*new_entry = NULL;
+
 	if (!name)
 		return fsalstat(ERR_FSAL_INVAL, 0);
 
@@ -470,13 +472,12 @@ static fsal_status_t mdc_open2_by_name(mdcache_entry_t *mdc_parent,
 		 */
 		LogFullDebug(COMPONENT_CACHE_INODE,
 			     "Lookup failed");
-		*new_entry = NULL;
 		return status;
 	}
 
 	/* Found to exist */
 	if (createmode == FSAL_GUARDED) {
-		mdcache_put(*new_entry);
+		mdcache_put(entry);
 		return fsalstat(ERR_FSAL_EXIST, 0);
 	} else if (createmode == FSAL_EXCLUSIVE) {
 		/* Exclusive create with entry found, check verifier */
@@ -485,7 +486,6 @@ static fsal_status_t mdc_open2_by_name(mdcache_entry_t *mdc_parent,
 			LogFullDebug(COMPONENT_CACHE_INODE,
 				     "Verifier check failed.");
 			mdcache_put(entry);
-			*new_entry = NULL;
 			return fsalstat(ERR_FSAL_EXIST, 0);
 		}
 
@@ -506,7 +506,6 @@ static fsal_status_t mdc_open2_by_name(mdcache_entry_t *mdc_parent,
 			     "Open failed %s",
 			     msg_fsal_err(status.major));
 		mdcache_put(entry);
-		*new_entry = NULL;
 	} else {
 		LogFullDebug(COMPONENT_CACHE_INODE,
 			     "Opened entry %p, sub_handle %p",
@@ -607,6 +606,7 @@ fsal_status_t mdcache_open2(struct fsal_obj_handle *obj_hdl,
 	struct attrlist attrs;
 	const char *dispname = name != NULL ? name : "<by-handle>";
 	struct mdcache_fsal_export *export = mdc_cur_export();
+	bool invalidate;
 
 	LogAttrlist(COMPONENT_CACHE_INODE, NIV_FULL_DEBUG,
 		    "attrs_in ", attrs_in, false);
@@ -696,6 +696,8 @@ fsal_status_t mdcache_open2(struct fsal_obj_handle *obj_hdl,
 		return status;
 	}
 
+	invalidate = createmode != FSAL_NO_CREATE;
+
 	PTHREAD_RWLOCK_wrlock(&mdc_parent->content_lock);
 
 	/* We will invalidate parent attrs if we did any form of create. */
@@ -703,12 +705,19 @@ fsal_status_t mdcache_open2(struct fsal_obj_handle *obj_hdl,
 						new_obj, false,
 						&attrs, attrs_out,
 						"open2 ", mdc_parent, name,
-						createmode != FSAL_NO_CREATE,
+						&invalidate,
 						state);
 
 	PTHREAD_RWLOCK_unlock(&mdc_parent->content_lock);
 
 	fsal_release_attrs(&attrs);
+
+	if (createmode != FSAL_NO_CREATE && !invalidate) {
+		/* Refresh destination directory attributes without
+		 * invalidating dirents.
+		 */
+		mdcache_refresh_attrs_no_invalidate(mdc_parent);
+	}
 
 	return status;
 }

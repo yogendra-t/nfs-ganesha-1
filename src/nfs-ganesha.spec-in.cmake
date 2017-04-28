@@ -36,6 +36,9 @@ Requires: sles-release >= 12
 @BCOND_NULLFS@ nullfs
 %global use_fsal_null %{on_off_switch nullfs}
 
+@BCOND_MEM@ mem
+%global use_fsal_mem %{on_off_switch mem}
+
 @BCOND_GPFS@ gpfs
 %global use_fsal_gpfs %{on_off_switch gpfs}
 
@@ -183,9 +186,9 @@ be used with NFS-Ganesha to support PROXY based filesystems
 Summary: The NFS-GANESHA's util scripts
 Group: Applications/System
 %if ( 0%{?suse_version} )
-Requires:	dbus-1-python, python-gobject2
+Requires:	dbus-1-python, python-gobject2, python-pyparsing
 %else
-Requires:	dbus-python, pygobject2
+Requires:	dbus-python, pygobject2, pyparsing
 %endif
 %if %{with gui_utils}
 %if ( 0%{?suse_version} )
@@ -228,6 +231,18 @@ Requires: nfs-ganesha = %{version}-%{release}
 %description nullfs
 This package contains a Stackable FSAL shared object to
 be used with NFS-Ganesha. This is mostly a template for future (more sophisticated) stackable FSALs
+%endif
+
+# MEM
+%if %{with mem}
+%package mem
+Summary: The NFS-GANESHA's Memory backed testing FSAL
+Group: Applications/System
+Requires: nfs-ganesha = %{version}-%{release}
+
+%description mem
+This package contains a FSAL shared object to be used with NFS-Ganesha.  This
+is used for speed and latency testing.
 %endif
 
 # GPFS
@@ -327,6 +342,7 @@ be used with NFS-Ganesha to support Gluster
 cmake .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DBUILD_CONFIG=rpmbuild				\
 	-DUSE_FSAL_NULL=%{use_fsal_null}		\
+	-DUSE_FSAL_MEM=%{use_fsal_mem}		\
 	-DUSE_FSAL_ZFS=%{use_fsal_zfs}			\
 	-DUSE_FSAL_XFS=%{use_fsal_xfs}			\
 	-DUSE_FSAL_CEPH=%{use_fsal_ceph}		\
@@ -398,6 +414,7 @@ install -m 644 config_samples/ceph.conf %{buildroot}%{_sysconfdir}/ganesha
 
 %if %{with rgw}
 install -m 644 config_samples/rgw.conf %{buildroot}%{_sysconfdir}/ganesha
+install -m 644 config_samples/rgw_bucket.conf %{buildroot}%{_sysconfdir}/ganesha
 %endif
 
 %if %{with gluster}
@@ -429,7 +446,7 @@ make DESTDIR=%{buildroot} install
 %systemd_post nfs-ganesha-config.service
 %endif
 %endif
-killall -SIGHUP dbus-daemon 2>&1 > /dev/null
+killall -SIGHUP dbus-daemon >/dev/null 2>&1 || :
 
 %preun
 %if ( 0%{?suse_version} )
@@ -500,6 +517,12 @@ killall -SIGHUP dbus-daemon 2>&1 > /dev/null
 %{_libdir}/ganesha/libfsalnull*
 %endif
 
+%if %{with mem}
+%files mem
+%defattr(-,root,root,-)
+%{_libdir}/ganesha/libfsalmem*
+%endif
+
 %if %{with gpfs}
 %files gpfs
 %defattr(-,root,root,-)
@@ -541,6 +564,7 @@ killall -SIGHUP dbus-daemon 2>&1 > /dev/null
 %defattr(-,root,root,-)
 %{_libdir}/ganesha/libfsalrgw*
 %config(noreplace) %{_sysconfdir}/ganesha/rgw.conf
+%config(noreplace) %{_sysconfdir}/ganesha/rgw_bucket.conf
 %endif
 
 %if %{with gluster}
@@ -595,6 +619,8 @@ killall -SIGHUP dbus-daemon 2>&1 > /dev/null
 %{_bindir}/ganesha_stats
 %{_bindir}/sm_notify.ganesha
 %{_bindir}/ganesha_mgr
+%{_bindir}/ganesha_conf
+%{_mandir}/*/*
 %endif
 
 %changelog

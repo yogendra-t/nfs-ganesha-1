@@ -30,6 +30,8 @@
  * @brief   Extern definitions for variables that are
  *          defined in fsal_internal.c.
  */
+#ifndef FSAL_INTERNAL_H
+#define FSAL_INTERNAL_H
 
 #include <sys/stat.h>
 #include "fsal.h"
@@ -37,8 +39,10 @@
 #include "fsal_types.h"
 #include "fcntl.h"
 #include "include/gpfs_nfs.h"
+#include "include/gpfs.h"
 #include "fsal_up.h"
 #include "gsh_config.h"
+#include "FSAL/fsal_commonlib.h"
 
 struct gpfs_filesystem;
 
@@ -68,21 +72,21 @@ struct gpfs_fd {
 	int fd;
 };
 
+struct gpfs_state_fd {
+	struct state_t state;
+	struct gpfs_fd gpfs_fd;
+};
 
 /* defined the set of attributes supported with POSIX */
-#define GPFS_SUPPORTED_ATTRIBUTES (                              \
-		ATTR_TYPE     | ATTR_SIZE     |                  \
-		ATTR_FSID     | ATTR_FILEID   |                  \
-		ATTR_MODE     | ATTR_NUMLINKS | ATTR_OWNER     | \
-		ATTR_GROUP    | ATTR_ATIME    | ATTR_RAWDEV    | \
-		ATTR_CTIME    | ATTR_MTIME    | ATTR_SPACEUSED | \
-		ATTR_CHGTIME | ATTR_ACL | ATTR4_SPACE_RESERVED | \
-		ATTR4_FS_LOCATIONS | ATTR4_XATTR)
+#define GPFS_SUPPORTED_ATTRIBUTES ((const attrmask_t) (         \
+		ATTRS_POSIX | ATTR_ACL | ATTR4_SPACE_RESERVED | \
+		ATTR4_FS_LOCATIONS | ATTR4_XATTR))
 
 #define GPFS_MAX_FH_SIZE OPENHANDLE_HANDLE_LEN
 
 /* Define the buffer size for GPFS NFS4 ACL. */
 #define GPFS_ACL_BUF_SIZE 0x1000
+#define GPFS_ACL_MAX_RETRY 10
 
 /* Define the standard fsid_type for GPFS*/
 #define GPFS_FSID_TYPE FSID_MAJOR_64
@@ -113,23 +117,14 @@ int fsal_internal_version(void);
 fsal_status_t fsal_internal_get_handle_at(int dfd,
 				const char *p_fsalname,
 				struct gpfs_file_handle *p_handle,
-				int expfd, int *expfdP);
+				int expfd);
 
-fsal_status_t gpfsfsal_xstat_2_fsal_attributes(
-					gpfsfsal_xstat_t *p_buffxstat,
-					struct attrlist *p_fsalattr_out,
-					bool use_acl);
+fsal_status_t gpfsfsal_xstat_2_fsal_attributes(gpfsfsal_xstat_t *gpfs_buf,
+		struct attrlist *fsal_attr, gpfs_acl_t *acl_buf, bool use_acl);
 
-/**
- * Gets a fd from a handle
- */
-fsal_status_t fsal_internal_handle2fd(int dirfd,
-				      struct gpfs_file_handle *phandle,
-				      int *pfd, int oflags, bool reopen);
-
-fsal_status_t fsal_internal_handle2fd_at(int dirfd,
-					 struct gpfs_file_handle *phandle,
-					 int *pfd, int oflags, bool reopen);
+fsal_status_t
+fsal_internal_handle2fd(int dirfd, struct gpfs_file_handle *phandle,
+			int *pfd, int oflags, bool reopen);
 /**
  * Gets a file handle from a parent handle and name
  */
@@ -148,7 +143,7 @@ fsal_status_t fsal_readlink_by_handle(int dirfd,
  * Get the handle for a path (posix or fid path)
  */
 fsal_status_t fsal_internal_fd2handle(int fd,
-				struct gpfs_file_handle *p_handle, int *expfdP);
+				struct gpfs_file_handle *p_handle);
 
 fsal_status_t fsal_internal_link_at(int srcfd, int dfd, char *name);
 
@@ -187,6 +182,8 @@ fsal_status_t fsal_internal_rename_fh(int dirfd,
 fsal_status_t fsal_get_xstat_by_handle(int dirfd,
 				       struct gpfs_file_handle *p_handle,
 				       gpfsfsal_xstat_t *p_buffxstat,
+				       gpfs_acl_t *acl_buf,
+				       unsigned int acl_buflen,
 				       uint32_t *expire_time_attr,
 				       bool expire, bool use_acl);
 
@@ -194,7 +191,8 @@ fsal_status_t fsal_set_xstat_by_handle(int dirfd,
 				       const struct req_op_context *p_context,
 				       struct gpfs_file_handle *p_handle,
 				       int attr_valid, int attr_changed,
-				       gpfsfsal_xstat_t *p_buffxstat);
+				       gpfsfsal_xstat_t *p_buffxstat,
+				       gpfs_acl_t *acl_buf);
 
 fsal_status_t fsal_trucate_by_handle(int dirfd,
 				     const struct req_op_context *p_context,
@@ -295,19 +293,10 @@ fsal_status_t GPFSFSAL_lookup(const struct req_op_context *p_context,
 			      struct fsal_filesystem **new_fs);
 
 fsal_status_t GPFSFSAL_lock_op(struct fsal_export *export,
-			       struct fsal_obj_handle *obj_hdl,
-			       void *p_owner,
 			       fsal_lock_op_t lock_op,
-			       fsal_lock_param_t request_lock,
-			       fsal_lock_param_t *conflicting_lock);
-
-fsal_status_t GPFSFSAL_lock_op2(int my_fd,
-				struct fsal_export *export,
-				struct fsal_obj_handle *obj_hdl,
-				void *p_owner,
-				fsal_lock_op_t lock_op,
-				fsal_lock_param_t *request_lock,
-				fsal_lock_param_t *conflicting_lock);
+			       fsal_lock_param_t *req_lock,
+			       fsal_lock_param_t *confl_lock,
+			       struct set_get_lock_arg *sg_lock_arg);
 
 fsal_status_t GPFSFSAL_share_op(int mntfd,
 				int fd,
@@ -344,3 +333,4 @@ size_t fs_da_addr_size(struct fsal_module *fsal_hdl);
 nfsstat4 getdeviceinfo(struct fsal_module *fsal_hdl,
 		       XDR *da_addr_body, const layouttype4 type,
 		       const struct pnfs_deviceid *deviceid);
+#endif

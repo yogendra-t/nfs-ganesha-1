@@ -244,9 +244,13 @@ void log_attrlist(log_components_t component, log_levels_t level,
 		  const char *reason, struct attrlist *attr, bool is_obj,
 		  char *file, int line, char *function);
 
-#define LogAttrlist(component, level, reason, attr, is_obj) \
-	log_attrlist(component, level, reason, attr, is_obj, \
-		     (char *) __FILE__, __LINE__, (char *) __func__)
+#define LogAttrlist(component, level, reason, attr, is_obj)                  \
+	do {                                                                 \
+		if (unlikely(isLevel(component, level)))                     \
+			log_attrlist(component, level, reason, attr, is_obj, \
+				     (char *) __FILE__, __LINE__,            \
+				     (char *) __func__);                     \
+	} while (0)
 
 const char *msg_fsal_err(fsal_errors_t fsal_err);
 #define fsal_err_txt(s) msg_fsal_err((s).major)
@@ -261,7 +265,7 @@ enum cb_state {
 	CB_PROBLEM,
 };
 
-typedef fsal_errors_t (*fsal_getattr_cb_t)
+typedef fsal_errors_t (*helper_readdir_cb)
 	(void *opaque,
 	 struct fsal_obj_handle *obj,
 	 const struct attrlist *attr,
@@ -305,10 +309,27 @@ struct fsal_readdir_cb_parms {
 fsal_status_t fsal_setattr(struct fsal_obj_handle *obj, bool bypass,
 			   struct state_t *state, struct attrlist *attr);
 
+/**
+ *
+ * @brief Checks the permissions on an object
+ *
+ * This function returns success if the supplied credentials possess
+ * permission required to meet the specified access.
+ *
+ * @param[in]  obj         The object to be checked
+ * @param[in]  access_type The kind of access to be checked
+ *
+ * @return FSAL status
+ *
+ */
+static inline
 fsal_status_t fsal_access(struct fsal_obj_handle *obj,
-			  fsal_accessflags_t access_type,
-			  fsal_accessflags_t *allowed,
-			  fsal_accessflags_t *denied);
+			  fsal_accessflags_t access_type)
+{
+	return
+	    obj->obj_ops.test_access(obj, access_type, NULL, NULL, false);
+}
+
 fsal_status_t fsal_link(struct fsal_obj_handle *obj,
 			struct fsal_obj_handle *dest_dir,
 			const char *name);
@@ -359,7 +380,7 @@ fsal_status_t fsal_rdwr(struct fsal_obj_handle *obj,
 		      bool *sync, struct io_info *info);
 fsal_status_t fsal_readdir(struct fsal_obj_handle *directory, uint64_t cookie,
 			   unsigned int *nbfound, bool *eod_met,
-			   attrmask_t attrmask, fsal_getattr_cb_t cb,
+			   attrmask_t attrmask, helper_readdir_cb cb,
 			   void *opaque);
 fsal_status_t fsal_remove(struct fsal_obj_handle *parent, const char *name);
 fsal_status_t fsal_rename(struct fsal_obj_handle *dir_src,

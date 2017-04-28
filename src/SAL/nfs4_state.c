@@ -91,14 +91,13 @@ state_status_t _state_add_impl(struct fsal_obj_handle *obj,
 {
 	state_t *pnew_state = *state;
 	struct state_hdl *ostate = obj->state_hdl;
-	char str[DISPLAY_STATEID_OTHER_SIZE];
+	char str[DISPLAY_STATEID_OTHER_SIZE] = "\0";
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 	bool str_valid = false;
 	bool got_export_ref = false;
 	state_status_t status = 0;
 	bool mutex_init = false;
 	struct state_t *openstate = NULL;
-	struct gsh_buffdesc fh_desc;
 
 	if (isFullDebug(COMPONENT_STATE) && pnew_state != NULL) {
 		display_stateid(&dspbuf, pnew_state);
@@ -166,10 +165,7 @@ state_status_t _state_add_impl(struct fsal_obj_handle *obj,
 	 */
 	pnew_state->state_export = op_ctx->ctx_export;
 	pnew_state->state_owner = owner_input;
-	fh_desc.addr = &pnew_state->state_obj.digest;
-	fh_desc.len = sizeof(pnew_state->state_obj.digest);
-	obj->obj_ops.handle_digest(obj, FSAL_DIGEST_NFSV4, &fh_desc);
-	pnew_state->state_obj.len = fh_desc.len;
+	pnew_state->state_obj = obj;
 
 	/* Add the state to the related hashtable */
 	if (!nfs4_State_Set(pnew_state)) {
@@ -211,7 +207,7 @@ state_status_t _state_add_impl(struct fsal_obj_handle *obj,
 	PTHREAD_MUTEX_unlock(&pnew_state->state_mutex);
 
 #ifdef USE_LTTNG
-	tracepoint(state, add, func, line, obj, state);
+	tracepoint(state, add, func, line, obj, pnew_state);
 #endif
 
 	/* Add state to list for owner */
@@ -328,7 +324,7 @@ state_status_t _state_add(struct fsal_obj_handle *obj,
 
 void _state_del_locked(state_t *state, const char *func, int line)
 {
-	char str[LOG_BUFF_LEN];
+	char str[LOG_BUFF_LEN] = "\0";
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 	bool str_valid = false;
 	struct fsal_obj_handle *obj;
@@ -389,7 +385,7 @@ void _state_del_locked(state_t *state, const char *func, int line)
 	glist_del(&state->state_list);
 	/* Put ref for this state entry */
 	obj->obj_ops.put_ref(obj);
-	memset(&state->state_obj, 0, sizeof(state->state_obj));
+	state->state_obj = NULL;
 	PTHREAD_MUTEX_unlock(&state->state_mutex);
 
 	if (obj->fsal->m_ops.support_ex(obj)) {
@@ -442,7 +438,7 @@ void _state_del_locked(state_t *state, const char *func, int line)
 				       &nfs4_owner->so_cache_entry);
 
 			if (isFullDebug(COMPONENT_STATE)) {
-				char str[LOG_BUFF_LEN];
+				char str[LOG_BUFF_LEN] = "\0";
 				struct display_buffer dspbuf = {
 						sizeof(str), str, str};
 
@@ -661,7 +657,7 @@ enum nfsstat4 release_lock_owner(state_owner_t *owner)
 	}
 
 	if (isDebug(COMPONENT_STATE)) {
-		char str[LOG_BUFF_LEN];
+		char str[LOG_BUFF_LEN] = "\0";
 		struct display_buffer dspbuf = {sizeof(str), str, str};
 
 		display_owner(&dspbuf, owner);
@@ -716,7 +712,7 @@ void release_openstate(state_owner_t *owner)
 	struct state_nfs4_owner_t *nfs4_owner = &owner->so_owner.so_nfs4_owner;
 
 	if (isFullDebug(COMPONENT_STATE)) {
-		char str[LOG_BUFF_LEN];
+		char str[LOG_BUFF_LEN] = "\0";
 		struct display_buffer dspbuf = {sizeof(str), str, str};
 
 		display_owner(&dspbuf, owner);
@@ -806,10 +802,12 @@ void release_openstate(state_owner_t *owner)
 
 		PTHREAD_RWLOCK_wrlock(&obj->state_hdl->state_lock);
 
-		if (state->state_type == STATE_TYPE_SHARE) {
-			op_ctx->ctx_export = export;
-			op_ctx->fsal_export = export->fsal_export;
+		/* op_ctx may be used by state_del_locked and others */
+		op_ctx->ctx_export = export;
+		op_ctx->fsal_export = export->fsal_export;
 
+		if (state->state_type == STATE_TYPE_SHARE &&
+		    !obj->fsal->m_ops.support_ex(obj)) {
 			state_status = state_share_remove(obj, owner, state);
 
 			if (!state_unlock_err_ok(state_status)) {
@@ -840,7 +838,7 @@ void release_openstate(state_owner_t *owner)
 	}
 
 	if (errcnt == STATE_ERR_MAX) {
-		char str[LOG_BUFF_LEN];
+		char str[LOG_BUFF_LEN] = "\0";
 		struct display_buffer dspbuf = {sizeof(str), str, str};
 
 		display_owner(&dspbuf, owner);
@@ -1079,7 +1077,8 @@ void state_export_release_nfs4_state(void)
 
 		PTHREAD_RWLOCK_wrlock(&obj->state_hdl->state_lock);
 
-		if (state->state_type == STATE_TYPE_SHARE) {
+		if (state->state_type == STATE_TYPE_SHARE &&
+		    !obj->fsal->m_ops.support_ex(obj)) {
 			state_status = state_share_remove(obj, owner, state);
 
 			if (!state_unlock_err_ok(state_status)) {
@@ -1119,7 +1118,7 @@ void state_export_release_nfs4_state(void)
 	if (errcnt == STATE_ERR_MAX) {
 		LogFatal(COMPONENT_STATE,
 			 "Could not complete cleanup of layouts for export %s",
-			 op_ctx->ctx_export->fullpath);
+			 op_ctx->ctx_export->pseudopath);
 	}
 }
 
@@ -1140,8 +1139,8 @@ void dump_all_states(void)
 		LogFullDebug(COMPONENT_STATE, " =State List= ");
 
 		glist_for_each(glist, &state_v4_all) {
-			char str1[LOG_BUFF_LEN / 2];
-			char str2[LOG_BUFF_LEN / 2];
+			char str1[LOG_BUFF_LEN / 2] = "\0";
+			char str2[LOG_BUFF_LEN / 2] = "\0";
 			struct display_buffer dspbuf1 = {
 						sizeof(str1), str1, str1};
 			struct display_buffer dspbuf2 = {

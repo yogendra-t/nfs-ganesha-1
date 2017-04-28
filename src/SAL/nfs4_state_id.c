@@ -62,9 +62,6 @@
 #include "nfs_proto_tools.h"
 #include "city.h"
 
-struct state_t *nfs4_State_Get_State_Obj(struct state_obj *state_obj,
-					 state_owner_t *owner);
-
 /**
  * @brief Hash table for stateids.
  */
@@ -250,8 +247,8 @@ int display_state_id_val(struct gsh_buffdesc *buff, char *str)
 int compare_state_id(struct gsh_buffdesc *buff1, struct gsh_buffdesc *buff2)
 {
 	if (isFullDebug(COMPONENT_STATE)) {
-		char str1[DISPLAY_STATEID_OTHER_SIZE];
-		char str2[DISPLAY_STATEID_OTHER_SIZE];
+		char str1[DISPLAY_STATEID_OTHER_SIZE] = "\0";
+		char str2[DISPLAY_STATEID_OTHER_SIZE] = "\0";
 		struct display_buffer dspbuf1 = {sizeof(str1), str1, str1};
 		struct display_buffer dspbuf2 = {sizeof(str2), str2, str2};
 
@@ -344,8 +341,7 @@ int compare_state_obj(struct gsh_buffdesc *buff1, struct gsh_buffdesc *buff2)
 	if (state1 == NULL || state2 == NULL)
 		return 1;
 
-	if (memcmp(state1->state_obj.digest, state2->state_obj.digest,
-		   state1->state_obj.len))
+	if (state1->state_obj != state2->state_obj)
 		return 1;
 
 	return compare_nfs4_owner(state1->state_owner, state2->state_owner);
@@ -367,7 +363,10 @@ uint32_t state_obj_value_hash_func(hash_parameter_t *hparam,
 	unsigned char c = 0;
 	uint32_t res = 0;
 
+	struct gsh_buffdesc fh_desc;
 	state_t *pkey = key->addr;
+
+	pkey->state_obj->obj_ops.handle_to_key(pkey->state_obj, &fh_desc);
 
 	/* Compute the sum of all the characters */
 	for (i = 0; i < pkey->state_owner->so_owner_len; i++) {
@@ -378,8 +377,7 @@ uint32_t state_obj_value_hash_func(hash_parameter_t *hparam,
 	res = ((uint32_t) pkey->state_owner->so_owner.so_nfs4_owner.so_clientid
 	      + (uint32_t) sum + pkey->state_owner->so_owner_len
 	      + (uint32_t) pkey->state_owner->so_type
-	      + (uint32_t) CityHash64WithSeed(pkey->state_obj.digest,
-					      pkey->state_obj.len, 557))
+	      + (uint64_t) CityHash64WithSeed(fh_desc.addr, fh_desc.len, 557))
 	      % (uint32_t) hparam->index_size;
 
 	if (isDebug(COMPONENT_HASHTABLE))
@@ -400,11 +398,14 @@ uint64_t state_obj_rbt_hash_func(hash_parameter_t *hparam,
 				 struct gsh_buffdesc *key)
 {
 	state_t *pkey = key->addr;
+	struct gsh_buffdesc fh_desc;
 
 	unsigned int sum = 0;
 	unsigned int i = 0;
 	unsigned char c = 0;
 	uint64_t res = 0;
+
+	pkey->state_obj->obj_ops.handle_to_key(pkey->state_obj, &fh_desc);
 
 	/* Compute the sum of all the characters */
 	for (i = 0; i < pkey->state_owner->so_owner_len; i++) {
@@ -415,8 +416,7 @@ uint64_t state_obj_rbt_hash_func(hash_parameter_t *hparam,
 	res = (uint64_t) pkey->state_owner->so_owner.so_nfs4_owner.so_clientid
 	      + (uint64_t) sum + pkey->state_owner->so_owner_len
 	      + (uint64_t) pkey->state_owner->so_type
-	      + (uint64_t) CityHash64WithSeed(pkey->state_obj.digest,
-					      pkey->state_obj.len, 557);
+	      + (uint64_t) CityHash64WithSeed(fh_desc.addr, fh_desc.len, 557);
 
 	if (isDebug(COMPONENT_HASHTABLE))
 		LogFullDebug(COMPONENT_STATE, "rbt = %" PRIu64, res);
@@ -494,7 +494,7 @@ void nfs4_BuildStateId_Other(nfs_client_id_t *clientid, char *other)
  */
 void dec_nfs4_state_ref(struct state_t *state)
 {
-	char str[LOG_BUFF_LEN];
+	char str[LOG_BUFF_LEN] = "\0";
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 	bool str_valid = false;
 	int32_t refcount;
@@ -587,14 +587,14 @@ int nfs4_State_Set(state_t *state)
 			hash_table_err_to_str(err), buffkey.addr);
 
 		if (isFullDebug(COMPONENT_STATE)) {
-			char str[LOG_BUFF_LEN];
+			char str[LOG_BUFF_LEN] = "\0";
 			struct display_buffer dspbuf = {sizeof(str), str, str};
 			state_t *state2;
 
 			display_stateid(&dspbuf, state);
 			LogCrit(COMPONENT_STATE, "State %s", str);
-			state2 = nfs4_State_Get_State_Obj(&state->state_obj,
-							  state->state_owner);
+			state2 = nfs4_State_Get_Obj(state->state_obj,
+						    state->state_owner);
 			if (state2 != NULL) {
 				display_reset_buffer(&dspbuf);
 				display_stateid(&dspbuf, state2);
@@ -658,12 +658,15 @@ struct state_t *nfs4_State_Get_Pointer(char *other)
 }
 
 /**
- * @brief Get the state from the stateid by state_obj/owner
+ * @brief Get the state from the stateid by entry/owner
+ *
+ * @param[in]  obj	Object containing state
+ * @param[in]  owner	Owner for state
  *
  * @returns The found state_t or NULL if not found.
  */
-struct state_t *nfs4_State_Get_State_Obj(struct state_obj *state_obj,
-					 state_owner_t *owner)
+struct state_t *nfs4_State_Get_Obj(struct fsal_obj_handle *obj,
+				   state_owner_t *owner)
 {
 	state_t state_key;
 	struct gsh_buffdesc buffkey;
@@ -678,7 +681,7 @@ struct state_t *nfs4_State_Get_State_Obj(struct state_obj *state_obj,
 	buffkey.len = sizeof(state_key);
 
 	state_key.state_owner = owner;
-	state_key.state_obj = *state_obj; /* Struct copy */
+	state_key.state_obj = obj;
 
 	rc = hashtable_getlatch(ht_state_obj,
 				&buffkey,
@@ -705,27 +708,6 @@ struct state_t *nfs4_State_Get_State_Obj(struct state_obj *state_obj,
 }
 
 /**
- * @brief Get the state from the stateid by entry/owner
- *
- * @param[in]  other      stateid4.other
- *
- * @returns The found state_t or NULL if not found.
- */
-struct state_t *nfs4_State_Get_Obj(struct fsal_obj_handle *obj,
-				     state_owner_t *owner)
-{
-	struct state_obj state_obj;
-	struct gsh_buffdesc fh_desc;
-
-	fh_desc.addr = &state_obj.digest;
-	fh_desc.len = sizeof(state_obj.digest);
-	obj->obj_ops.handle_digest(obj, FSAL_DIGEST_NFSV4, &fh_desc);
-	state_obj.len = fh_desc.len;
-
-	return nfs4_State_Get_State_Obj(&state_obj, owner);
-}
-
-/**
  * @brief Remove a state from the stateid table
  *
  * @param[in] other stateid4.other
@@ -748,7 +730,7 @@ bool nfs4_State_Del(state_t *state)
 		/* Already gone */
 		return false;
 	} else if (err != HASHTABLE_SUCCESS) {
-		char str[LOG_BUFF_LEN];
+		char str[LOG_BUFF_LEN] = "\0";
 		struct display_buffer dspbuf = {sizeof(str), str, str};
 
 		display_stateid(&dspbuf, state);
@@ -824,7 +806,7 @@ nfsstat4 nfs4_Check_Stateid(stateid4 *stateid, struct fsal_obj_handle *fsal_obj,
 	state_t *state2 = NULL;
 	struct fsal_obj_handle *obj2 = NULL;
 	state_owner_t *owner2 = NULL;
-	char str[DISPLAY_STATEID4_SIZE];
+	char str[DISPLAY_STATEID4_SIZE] = "\0";
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 	bool str_valid = false;
 	int32_t diff;
@@ -1283,7 +1265,7 @@ void update_stateid(state_t *state, stateid4 *resp, compound_data_t *data,
 	COPY_STATEID(resp, state);
 
 	if (isFullDebug(COMPONENT_STATE)) {
-		char str[DISPLAY_STATEID4_SIZE];
+		char str[DISPLAY_STATEID4_SIZE] = "\0";
 		struct display_buffer dspbuf = {sizeof(str), str, str};
 
 		display_stateid4(&dspbuf, resp);

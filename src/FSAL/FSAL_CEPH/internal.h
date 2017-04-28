@@ -46,6 +46,7 @@
 #include <stdbool.h>
 #include <uuid/uuid.h>
 #include "statx_compat.h"
+#include "FSAL/fsal_commonlib.h"
 
 /* Max length of a user_id string that we pass to ceph_mount */
 #define MAXUIDLEN	(64)
@@ -83,6 +84,11 @@ struct ceph_fd {
 	fsal_openflags_t openflags;
 	/** The cephfs file descriptor. */
 	Fh *fd;
+};
+
+struct ceph_state_fd {
+	struct state_t state;
+	struct ceph_fd ceph_fd;
 };
 
 /**
@@ -132,11 +138,13 @@ struct ds {
 
 #endif				/* CEPH_PNFS */
 
-#ifndef CEPH_INTERNAL_C
-/* Keep internal.c from clashing with itself */
-extern attrmask_t supported_attributes;
-extern attrmask_t settable_attributes;
-#endif				/* !CEPH_INTERNAL_C */
+#define CEPH_SUPPORTED_ATTRS ((const attrmask_t) (ATTRS_POSIX))
+
+#define CEPH_SETTABLE_ATTRIBUTES ((const attrmask_t) (			\
+	ATTR_MODE  | ATTR_OWNER | ATTR_GROUP | ATTR_ATIME	 |	\
+	ATTR_CTIME | ATTR_MTIME | ATTR_SIZE  | ATTR_MTIME_SERVER |	\
+	ATTR_ATIME_SERVER))
+
 
 /* private helper for export object */
 
@@ -184,5 +192,7 @@ void handle_ops_pnfs(struct fsal_obj_ops *ops);
 struct state_t *ceph_alloc_state(struct fsal_export *exp_hdl,
 				 enum state_type state_type,
 				 struct state_t *related_state);
+
+void ceph_free_state(struct fsal_export *exp_hdl, struct state_t *state);
 
 #endif				/* !FSAL_CEPH_INTERNAL_INTERNAL__ */

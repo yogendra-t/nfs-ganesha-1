@@ -118,8 +118,7 @@ static nfsstat4 open4_do_open(struct nfs_argop4 *op, compound_data_t *data,
 		access_mask |= FSAL_READ_ACCESS;
 
 	if (!skip_permission) {
-		status = fsal_access(data->current_obj, access_mask, NULL,
-				     NULL);
+		status = fsal_access(data->current_obj, access_mask);
 
 		if (FSAL_IS_ERROR(status)) {
 			/* If non-permission error, return it. */
@@ -145,8 +144,7 @@ static nfsstat4 open4_do_open(struct nfs_argop4 *op, compound_data_t *data,
 			 */
 			status = fsal_access(data->current_obj,
 				FSAL_MODE_MASK_SET(FSAL_X_OK) |
-				FSAL_ACE4_MASK_SET(FSAL_ACE_PERM_EXECUTE),
-				NULL, NULL);
+				FSAL_ACE4_MASK_SET(FSAL_ACE_PERM_EXECUTE));
 
 			if (FSAL_IS_ERROR(status)) {
 				LogDebug(COMPONENT_STATE,
@@ -194,7 +192,7 @@ static nfsstat4 open4_do_open(struct nfs_argop4 *op, compound_data_t *data,
 		*new_state = false;
 
 		if (isFullDebug(COMPONENT_STATE)) {
-			char str[LOG_BUFF_LEN];
+			char str[LOG_BUFF_LEN] = "\0";
 			struct display_buffer dspbuf = {sizeof(str), str, str};
 
 			display_stateid(&dspbuf, file_state);
@@ -877,7 +875,7 @@ static nfsstat4 open4_claim_deleg(OPEN4args *arg, compound_data_t *data)
 		return NFS4ERR_BAD_STATEID;
 	} else {
 		if (isFullDebug(COMPONENT_NFS_V4)) {
-			char str[LOG_BUFF_LEN];
+			char str[LOG_BUFF_LEN] = "\0";
 			struct display_buffer dspbuf = {sizeof(str), str, str};
 
 			display_stateid(&dspbuf, found_state);
@@ -1014,8 +1012,8 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 	}
 
 	if (isDebug(COMPONENT_NFS_V4_LOCK)) {
-		char str1[LOG_BUFF_LEN / 2];
-		char str2[LOG_BUFF_LEN / 2];
+		char str1[LOG_BUFF_LEN / 2] = "\0";
+		char str2[LOG_BUFF_LEN / 2] = "\0";
 		struct display_buffer dspbuf1 = {sizeof(str1), str1, str1};
 		struct display_buffer dspbuf2 = {sizeof(str2), str2, str2};
 
@@ -1391,7 +1389,7 @@ static void open4_ex(OPEN4args *arg,
 		*file_state = nfs4_State_Get_Obj(file_obj, owner);
 
 		if (isFullDebug(COMPONENT_STATE) && *file_state != NULL) {
-			char str[LOG_BUFF_LEN];
+			char str[LOG_BUFF_LEN] = "\0";
 			struct display_buffer dspbuf = {sizeof(str), str, str};
 
 			display_stateid(&dspbuf, *file_state);
