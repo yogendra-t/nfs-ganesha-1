@@ -735,7 +735,7 @@ static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl,
 {
 	int rc = 0;
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
-	glusterfs_fsal_xstat_t buffxstat;
+	glusterfs_fsal_xstat_t buffxstat = { 0 };
 	struct glusterfs_export *glfs_export =
 	    container_of(op_ctx->fsal_export, struct glusterfs_export, export);
 	struct glusterfs_handle *objhandle =
@@ -2523,12 +2523,12 @@ static fsal_status_t remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 */
 
 /**
- * @brief Implements GLUSTER FSAL objectoperation handle_digest
+ * @brief Implements GLUSTER FSAL objectoperation handle_to_wire
  */
 
-static fsal_status_t handle_digest(const struct fsal_obj_handle *obj_hdl,
-				   fsal_digesttype_t output_type,
-				   struct gsh_buffdesc *fh_desc)
+static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
+				    fsal_digesttype_t output_type,
+				    struct gsh_buffdesc *fh_desc)
 {
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 	size_t fh_size;
@@ -2566,7 +2566,7 @@ static fsal_status_t handle_digest(const struct fsal_obj_handle *obj_hdl,
  out:
 #ifdef GLTIMING
 	now(&e_time);
-	latency_update(&s_time, &e_time, lat_handle_digest);
+	latency_update(&s_time, &e_time, lat_handle_to_wire);
 #endif
 	return status;
 }
@@ -2614,7 +2614,7 @@ void handle_ops_init(struct fsal_obj_ops *ops)
 	ops->link = linkfile;
 	ops->rename = renamefile;
 	ops->unlink = file_unlink;
-	ops->handle_digest = handle_digest;
+	ops->handle_to_wire = handle_to_wire;
 	ops->handle_to_key = handle_to_key;
 	ops->close = file_close;
 

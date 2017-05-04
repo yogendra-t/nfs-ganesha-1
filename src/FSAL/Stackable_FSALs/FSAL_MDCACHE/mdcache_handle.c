@@ -1034,7 +1034,7 @@ unlock:
 	if (mdc_olddir != mdc_newdir && obj_hdl->type == DIRECTORY) {
 		PTHREAD_RWLOCK_wrlock(&mdc_obj->content_lock);
 
-		mdcache_key_delete(&mdc_obj->fsobj.fsdir.parent);
+		mdcache_free_fh(&mdc_obj->fsobj.fsdir.parent);
 		mdc_dir_add_parent(mdc_obj, mdc_newdir);
 
 		PTHREAD_RWLOCK_unlock(&mdc_obj->content_lock);
@@ -1384,7 +1384,7 @@ static fsal_status_t mdcache_unlink(struct fsal_obj_handle *dir_hdl,
 					   MDCACHE_TRUST_ATTRS);
 
 		if (entry->obj_handle.type == DIRECTORY)
-			mdcache_key_delete(&entry->fsobj.fsdir.parent);
+			mdcache_free_fh(&entry->fsobj.fsdir.parent);
 
 		mdc_unreachable(entry);
 	}
@@ -1449,7 +1449,7 @@ static bool mdcache_handle_is(struct fsal_obj_handle *obj_hdl,
 }
 
 /**
- * @brief Get the digest for a handle
+ * @brief Get the wire version of a handle
  *
  * Just pass through to the underlying FSAL
  *
@@ -1458,7 +1458,7 @@ static bool mdcache_handle_is(struct fsal_obj_handle *obj_hdl,
  * @param[out] fh_desc	Buffer to write digest into
  * @return FSAL status
  */
-static fsal_status_t mdcache_handle_digest(
+static fsal_status_t mdcache_handle_to_wire(
 				const struct fsal_obj_handle *obj_hdl,
 				fsal_digesttype_t out_type,
 				struct gsh_buffdesc *fh_desc)
@@ -1468,7 +1468,7 @@ static fsal_status_t mdcache_handle_digest(
 	fsal_status_t status;
 
 	subcall(
-		status = entry->sub_handle->obj_ops.handle_digest(
+		status = entry->sub_handle->obj_ops.handle_to_wire(
 			entry->sub_handle, out_type, fh_desc)
 	       );
 
@@ -1732,7 +1732,7 @@ void mdcache_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->share_op = mdcache_share_op;
 	ops->close = mdcache_close;
 	ops->handle_is = mdcache_handle_is;
-	ops->handle_digest = mdcache_handle_digest;
+	ops->handle_to_wire = mdcache_handle_to_wire;
 	ops->handle_to_key = mdcache_handle_to_key;
 	ops->handle_cmp = mdcache_handle_cmp;
 
@@ -1848,37 +1848,30 @@ fsal_status_t mdcache_lookup_path(struct fsal_export *exp_hdl,
 }
 
 /**
- * @brief Find or create a cache entry from a key
+ * @brief Find or create a cache entry from a host-handle
  *
  * This is the equivalent of mdcache_get().  It returns a ref'd entry that
  * must be put using obj_ops.release().
  *
  * @param[in]     exp_hdl   The export in which to create the handle
- * @param[in]     hdl_desc  Buffer descriptor for the "wire" handle
+ * @param[in]     hdl_desc  Buffer descriptor for the host handle
  * @param[out]    handle    FSAL object handle
  * @param[in,out] attrs_out Optional attributes for newly created object
  *
  * @return FSAL status
  */
 fsal_status_t mdcache_create_handle(struct fsal_export *exp_hdl,
-				   struct gsh_buffdesc *hdl_desc,
+				   struct gsh_buffdesc *fh_desc,
 				   struct fsal_obj_handle **handle,
 				   struct attrlist *attrs_out)
 {
 	struct mdcache_fsal_export *export =
 		container_of(exp_hdl, struct mdcache_fsal_export, export);
-	struct fsal_export *sub_export = export->export.sub_export;
-	mdcache_key_t key;
 	mdcache_entry_t *entry;
 	fsal_status_t status;
 
 	*handle = NULL;
-	key.fsal = sub_export->fsal;
-
-	(void) cih_hash_key(&key, sub_export->fsal, hdl_desc,
-			    CIH_HASH_KEY_PROTOTYPE);
-
-	status = mdcache_locate_keyed(&key, export, &entry, attrs_out);
+	status = mdcache_locate_host(fh_desc, export, &entry, attrs_out);
 	if (FSAL_IS_ERROR(status))
 		return status;
 

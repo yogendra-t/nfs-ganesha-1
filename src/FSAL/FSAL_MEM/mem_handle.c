@@ -369,19 +369,19 @@ _mem_alloc_handle(struct mem_fsal_obj_handle *parent,
 	hdl->obj_handle.fileid = atomic_postinc_uint64_t(&mem_inode_number);
 	hdl->attrs.fileid = hdl->obj_handle.fileid;
 
-	if ((attrs->valid_mask & ATTR_MODE) != 0)
+	if ((attrs && attrs->valid_mask & ATTR_MODE) != 0)
 		hdl->attrs.mode = attrs->mode & (~S_IFMT & 0xFFFF) &
 			~op_ctx->fsal_export->exp_ops.fs_umask(
 						op_ctx->fsal_export);
 	else
 		hdl->attrs.mode = 0600;
 
-	if ((attrs->valid_mask & ATTR_OWNER) != 0)
+	if ((attrs && attrs->valid_mask & ATTR_OWNER) != 0)
 		hdl->attrs.owner = attrs->owner;
 	else
 		hdl->attrs.owner = op_ctx->creds->caller_uid;
 
-	if ((attrs->valid_mask & ATTR_GROUP) != 0)
+	if ((attrs && attrs->valid_mask & ATTR_GROUP) != 0)
 		hdl->attrs.group = attrs->group;
 	else
 		hdl->attrs.group = op_ctx->creds->caller_gid;
@@ -390,12 +390,12 @@ _mem_alloc_handle(struct mem_fsal_obj_handle *parent,
 	now(&hdl->attrs.ctime);
 	hdl->attrs.chgtime = hdl->attrs.ctime;
 
-	if ((attrs->valid_mask & ATTR_ATIME) != 0)
+	if ((attrs && attrs->valid_mask & ATTR_ATIME) != 0)
 		hdl->attrs.atime = attrs->atime;
 	else
 		hdl->attrs.atime = hdl->attrs.ctime;
 
-	if ((attrs->valid_mask & ATTR_MTIME) != 0)
+	if ((attrs && attrs->valid_mask & ATTR_MTIME) != 0)
 		hdl->attrs.mtime = attrs->mtime;
 	else
 		hdl->attrs.mtime = hdl->attrs.ctime;
@@ -403,7 +403,7 @@ _mem_alloc_handle(struct mem_fsal_obj_handle *parent,
 	hdl->attrs.change =
 		timespec_to_nsecs(&hdl->attrs.chgtime);
 
-	if ((attrs->valid_mask & ATTR_SIZE) != 0) {
+	if ((attrs && attrs->valid_mask & ATTR_SIZE) != 0) {
 		hdl->attrs.filesize = attrs->filesize;
 		hdl->attrs.spaceused = attrs->filesize;
 	} else {
@@ -411,7 +411,7 @@ _mem_alloc_handle(struct mem_fsal_obj_handle *parent,
 		hdl->attrs.spaceused = 0;
 	}
 
-	if ((attrs->valid_mask & ATTR_RAWDEV) != 0) {
+	if ((attrs && attrs->valid_mask & ATTR_RAWDEV) != 0) {
 		hdl->attrs.rawdev.major = attrs->rawdev.major;
 		hdl->attrs.rawdev.minor = attrs->rawdev.minor;
 	} else {
@@ -1648,7 +1648,7 @@ fsal_status_t mem_close2(struct fsal_obj_handle *obj_hdl,
 }
 
 /**
- * @brief Get the digest for a handle
+ * @brief Get the wire version of a handle
  *
  * fill in the opaque f/s file handle part.
  * we zero the buffer to length first.  This MAY already be done above
@@ -1660,9 +1660,9 @@ fsal_status_t mem_close2(struct fsal_obj_handle *obj_hdl,
  * @param[out] fh_desc	Buffer to write digest into
  * @return FSAL status
  */
-static fsal_status_t mem_handle_digest(const struct fsal_obj_handle *obj_hdl,
-				   fsal_digesttype_t output_type,
-				   struct gsh_buffdesc *fh_desc)
+static fsal_status_t mem_handle_to_wire(const struct fsal_obj_handle *obj_hdl,
+					fsal_digesttype_t output_type,
+					struct gsh_buffdesc *fh_desc)
 {
 	const struct mem_fsal_obj_handle *myself;
 
@@ -1792,7 +1792,7 @@ void mem_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->commit2 = mem_commit2;
 	ops->lock_op2 = mem_lock_op2;
 	ops->close2 = mem_close2;
-	ops->handle_digest = mem_handle_digest;
+	ops->handle_to_wire = mem_handle_to_wire;
 	ops->handle_to_key = mem_handle_to_key;
 }
 
