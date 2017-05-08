@@ -43,6 +43,8 @@
 
 typedef struct mdcache_fsal_obj_handle mdcache_entry_t;
 
+#define MDC_UNEXPORT 1
+
 /*
  * MDCACHE internal export
  */
@@ -57,6 +59,8 @@ struct mdcache_fsal_export {
 	struct glist_head entry_list;
 	/** Lock protecting entry_list */
 	pthread_rwlock_t mdc_exp_lock;
+	/** Flags for the export. */
+	uint8_t flags;
 };
 
 /**
@@ -248,8 +252,11 @@ struct mdcache_fsal_obj_handle {
 	mdcache_lru_t lru;
 	/** Exports per entry (protected by attr_lock) */
 	struct glist_head export_list;
-	/** Atomic pointer to the first mapped export for fast path */
-	void *first_export;
+	/** ID of the first mapped export for fast path
+	 *  This is an int32_t because we need it to be -1 to indicate
+	 *  no mapped export.
+	 */
+	int32_t first_export_id;
 	/** Lock on type-specific cached content.  See locking
 	    discipline for details. */
 	pthread_rwlock_t content_lock;
@@ -470,6 +477,7 @@ static inline struct mdcache_fsal_export *mdc_cur_export(void)
 }
 
 void mdc_clean_entry(mdcache_entry_t *entry);
+fsal_status_t mdc_check_mapping(mdcache_entry_t *entry);
 void _mdcache_kill_entry(mdcache_entry_t *entry,
 			 char *file, int line, char *function);
 
@@ -574,7 +582,7 @@ mdc_dir_add_parent(mdcache_entry_t *entry, mdcache_entry_t *mdc_parent)
 /**
  * @brief Delete a cache key.
  *
- * Delete a cache key.
+ * Delete a cache key. Safe to call even if key was not allocated.
  *
  * @param key [in] The key to delete
  *
