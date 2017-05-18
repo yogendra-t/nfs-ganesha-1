@@ -40,7 +40,6 @@
 #include <string.h>
 #include <signal.h>
 #include <libgen.h>
-#include <execinfo.h>
 #include <sys/resource.h>
 
 #include "log.h"
@@ -2168,7 +2167,7 @@ static struct config_item component_levels[] = {
 			 COMPONENT_FSAL_UP, int),
 	CONF_INDEX_TOKEN("DBUS", NB_LOG_LEVEL, log_levels,
 			 COMPONENT_DBUS, int),
-	CONF_INDEX_TOKEN("COMPONENT_NFS_MSK", NB_LOG_LEVEL, log_levels,
+	CONF_INDEX_TOKEN("NFS_MSK", NB_LOG_LEVEL, log_levels,
 			 COMPONENT_NFS_MSK, int),
 	CONFIG_EOL
 };
