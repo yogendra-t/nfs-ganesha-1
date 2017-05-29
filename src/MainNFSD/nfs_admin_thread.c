@@ -450,8 +450,6 @@ static void do_shutdown(void)
 			 "Worker threads successfully shut down.");
 	}
 
-	(void)svc_shutdown(SVC_SHUTDOWN_FLAG_NONE);
-
 	rc = general_fridge_shutdown();
 	if (rc != 0) {
 		LogMajor(COMPONENT_THREAD,
@@ -483,6 +481,8 @@ static void do_shutdown(void)
 
 	LogEvent(COMPONENT_MAIN, "Removing all exports.");
 	remove_all_exports();
+
+	(void)svc_shutdown(SVC_SHUTDOWN_FLAG_NONE);
 
 	if (disorderly) {
 		LogMajor(COMPONENT_MAIN,
