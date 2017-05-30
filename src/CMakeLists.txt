@@ -44,7 +44,7 @@ set(GANESHA_PATCH_LEVEL )
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -ibm008.00)
+set(GANESHA_EXTRA_VERSION -ibm008.02)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -325,6 +325,9 @@ option(USE_TSAN "Enable GCC Thread-Sanitizer" OFF)
 # Enable LTTng tracing
 option(USE_LTTNG "Enable LTTng tracing" OFF)
 
+# Build man page.
+option(USE_MAN_PAGE "Build MAN page" OFF) 
+
 #
 # End build options
 #
@@ -514,6 +517,13 @@ if (USE_ADMIN_TOOLS)
     endif (NOT PYUIC)
   endif (USE_GUI_ADMIN_TOOLS)
 endif (USE_ADMIN_TOOLS)
+
+if (USE_MAN_PAGE)
+  find_program(SPHINX_BUILD sphinx-build)
+  if(NOT SPHINX_BUILD)
+    message(FATAL_ERROR "Can't find sphinx-build.")
+  endif(NOT SPHINX_BUILD)
+endif(USE_MAN_PAGE)
 
 # Validate fsal dependencies
 
@@ -942,7 +952,7 @@ if(USE_LTTNG)
 endif(USE_LTTNG)
 
 add_subdirectory(scripts)
-
+add_subdirectory(doc)
 # display configuration vars
 
 message(STATUS)
@@ -1021,6 +1031,7 @@ message(STATUS "USE_LTTNG = ${USE_LTTNG}")
 message(STATUS "USE_BLKIN = ${USE_BLKIN}")
 message(STATUS "USE_VSOCK = ${USE_VSOCK}")
 message(STATUS "USE_TOOL_MULTILOCK = ${USE_TOOL_MULTILOCK}")
+message(STATUS "USE_MAN_PAGE = ${USE_MAN_PAGE}")
 
 #force command line options to be stored in cache
 set(USE_FSAL_VFS ${USE_FSAL_VFS}
