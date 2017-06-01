@@ -290,10 +290,7 @@ mdcache_fsal_create_export(struct fsal_module *sub_fsal, void *parse_node,
 	op_ctx->fsal_module = &MDCACHE.fsal;
 
 	/* Stacking is setup and ready to take upcalls now */
-	PTHREAD_MUTEX_lock(&myself->up_ops.up_mutex);
-	myself->up_ops.up_ready = true;
-	pthread_cond_broadcast(&myself->up_ops.up_cond);
-	PTHREAD_MUTEX_unlock(&myself->up_ops.up_mutex);
+	up_ready_set(&myself->up_ops);
 
 	return status;
 }

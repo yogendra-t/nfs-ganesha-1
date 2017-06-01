@@ -142,10 +142,7 @@ void *GLUSTERFSAL_UP_Thread(void *Arg)
 	}
 
 	/* wait for upcall readiness */
-	PTHREAD_MUTEX_lock(&event_func->up_mutex);
-	while (!event_func->up_ready)
-		pthread_cond_wait(&event_func->up_cond, &event_func->up_mutex);
-	PTHREAD_MUTEX_unlock(&event_func->up_mutex);
+	up_ready_wait(event_func);
 
 	/* Start querying for events and processing. */
 	/** @todo : Do batch processing instead */

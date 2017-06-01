@@ -87,11 +87,6 @@ enum {
 };
 
 /**
- * Close any open file.
- */
-static const uint32_t fsal_up_close = 0x0100;
-
-/**
  * @brief Optional stuff for layoutreturn
  * @{
  */
@@ -321,6 +316,10 @@ fsal_status_t up_async_delegrecall(struct fridgethr *fr,
 
 /** @} */
 int async_delegrecall(struct fridgethr *fr, struct fsal_obj_handle *obj);
+
+void up_ready_init(struct fsal_up_vector *up_ops);
+void up_ready_set(struct fsal_up_vector *up_ops);
+void up_ready_wait(struct fsal_up_vector *up_ops);
 
 #endif /* FSAL_UP_H */
 /** @} */

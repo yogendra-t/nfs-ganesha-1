@@ -453,9 +453,7 @@ mdcache_export_up_ops_init(struct fsal_up_vector *my_up_ops,
 	/* Init with super ops. Struct copy */
 	*my_up_ops = *super_up_ops;
 
-	my_up_ops->up_ready = false;
-	PTHREAD_MUTEX_init(&my_up_ops->up_mutex, NULL);
-	PTHREAD_COND_init(&my_up_ops->up_cond, NULL);
+	up_ready_init(my_up_ops);
 
 	/* Replace cache-related calls */
 	my_up_ops->invalidate = mdc_up_invalidate;

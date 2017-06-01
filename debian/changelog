@@ -1,8 +1,8 @@
 nfs-ganesha (2.5.0-ibm008) xenial; urgency=medium
 
-  * nfs-ganesha 2.5.0-ibm008.03
+  * nfs-ganesha 2.5.0-ibm008.04
 
- -- Malahal Naineni <malahal@us.ibm.com>  Wed, 31 May 2017 04:48:22 -0500
+ -- Malahal Naineni <malahal@us.ibm.com>  Thu, 1 Jun 2017 04:48:22 -0500
 
 nfs-ganesha (2.5.0-ibm007) xenial; urgency=medium
 
