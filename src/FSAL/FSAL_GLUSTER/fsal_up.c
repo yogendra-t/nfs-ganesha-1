@@ -36,7 +36,6 @@
 #include <unistd.h>
 #include <utime.h>
 #include <sys/time.h>
-#include <pthread.h>
 
 int upcall_inode_invalidate(struct glusterfs_fs *gl_fs,
 			     struct glfs_object *object)

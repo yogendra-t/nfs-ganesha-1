@@ -44,7 +44,7 @@ set(GANESHA_PATCH_LEVEL )
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -ibm008.04)
+set(GANESHA_EXTRA_VERSION -ibm008.05)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -1310,6 +1310,11 @@ configure_file(
 configure_file(
   "${PROJECT_SOURCE_DIR}/scripts/systemd/nfs-ganesha-config.service-in.cmake"
   "${PROJECT_SOURCE_DIR}/scripts/systemd/nfs-ganesha-config.service"
+)
+
+configure_file(
+  "${PROJECT_SOURCE_DIR}/scripts/systemd/sysconfig/nfs-ganesha-in.cmake"
+  "${PROJECT_SOURCE_DIR}/scripts/systemd/sysconfig/nfs-ganesha"
 )
 
 add_custom_target( rpm DEPENDS dist)

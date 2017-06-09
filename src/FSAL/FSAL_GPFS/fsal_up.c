@@ -30,66 +30,6 @@
 #include <unistd.h>
 #include <utime.h>
 #include <sys/time.h>
-#include <pthread.h>
-
-/* stat buf might be partially filled in. The caller must set
- * attr->valid_mask to indicate what attributes are set in stat buf!
- *
- * attr parameter is filled with valid values from stat buf.
- */
-static void
-gpfs_posix2fsal_attributes(struct stat *buf, struct attrlist *attr)
-{
-	/* Initialize ACL regardless of whether ACL was asked or not */
-	attr->acl = NULL;
-	attr->supported = GPFS_SUPPORTED_ATTRIBUTES;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_TYPE))
-		attr->type = posix2fsal_type(buf->st_mode);
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_SIZE))
-		attr->filesize = buf->st_size;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_FSID))
-		attr->fsid = posix2fsal_fsid(buf->st_dev);
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_FILEID))
-		attr->fileid = (uint64_t)buf->st_ino;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_MODE))
-		attr->mode = unix2fsal_mode(buf->st_mode);
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_NUMLINKS))
-		attr->numlinks = buf->st_nlink;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_OWNER))
-		attr->owner = buf->st_uid;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_GROUP))
-		attr->group = buf->st_gid;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_ATIME))
-		attr->atime = buf->st_atim;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_CTIME))
-		attr->ctime = buf->st_ctim;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_MTIME))
-		attr->mtime = buf->st_mtim;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_CHGTIME)) {
-		attr->chgtime =
-			gsh_time_cmp(&buf->st_mtim, &buf->st_ctim) > 0 ?
-			buf->st_mtim : buf->st_ctim;
-		attr->change = timespec_to_nsecs(&attr->chgtime);
-	}
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_SPACEUSED))
-		attr->spaceused = buf->st_blocks * S_BLKSIZE;
-
-	if (FSAL_TEST_MASK(attr->valid_mask, ATTR_RAWDEV))
-		attr->rawdev = posix2fsal_devt(buf->st_rdev);
-}
 
 /**
  * @brief Up Thread
@@ -393,12 +333,10 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 						FSAL_UP_INVALIDATE_CACHE);
 				} else {
 					/* buf may not have all attributes set.
-					 * Since posix2fsal_attributes()
-					 * assumes all attributes being set, we
-					 * can't use it.
+					 * Set the mask to what is changed
 					 */
-					/* Set the mask to what is changed */
 					attr.valid_mask = 0;
+					attr.acl = NULL;
 					upflags = 0;
 					if (flags & UP_SIZE)
 						attr.valid_mask |=
@@ -433,7 +371,7 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 					attr.expire_time_attr =
 					    expire_time_attr;
 
-					gpfs_posix2fsal_attributes(&buf, &attr);
+					posix2fsal_attributes(&buf, &attr);
 					fsal_status = event_func->
 					    update(event_func,
 						   &key, &attr, upflags);
