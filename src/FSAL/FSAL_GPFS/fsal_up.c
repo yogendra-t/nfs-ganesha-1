@@ -389,6 +389,10 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 						attr.valid_mask |=
 						   ATTR_CHGTIME | ATTR_CHANGE |
 						   ATTR_ATIME;
+					if (flags & UP_NLINK)
+						attr.valid_mask |=
+							ATTR_NUMLINKS;
+					attr.request_mask = attr.valid_mask;
 
 					attr.expire_time_attr =
 					    expire_time_attr;
@@ -402,6 +406,7 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 					    && (attr.numlinks == 0)) {
 						upflags = fsal_up_nlink;
 						attr.valid_mask = 0;
+						attr.request_mask = 0;
 						fsal_status = up_async_update
 						    (general_fridge,
 						     event_func,
