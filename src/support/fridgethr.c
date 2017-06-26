@@ -1557,7 +1557,7 @@ int general_fridge_shutdown(void)
 {
 	int rc = fridgethr_sync_command(general_fridge,
 					fridgethr_comm_stop,
-					120);
+					4);
 
 	if (rc == ETIMEDOUT) {
 		LogMajor(COMPONENT_THREAD,

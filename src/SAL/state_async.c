@@ -156,7 +156,7 @@ state_status_t state_async_shutdown(void)
 {
 	int rc = fridgethr_sync_command(state_async_fridge,
 					fridgethr_comm_stop,
-					120);
+					4);
 	if (rc == ETIMEDOUT) {
 		LogMajor(COMPONENT_STATE,
 			 "Shutdown timed out, cancelling threads.");

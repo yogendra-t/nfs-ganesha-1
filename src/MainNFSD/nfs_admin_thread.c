@@ -339,7 +339,7 @@ static void do_shutdown(void)
 	Clean_RPC();
 
 	LogEvent(COMPONENT_MAIN, "Stopping request decoder threads");
-	rc = fridgethr_sync_command(req_fridge, fridgethr_comm_stop, 120);
+	rc = fridgethr_sync_command(req_fridge, fridgethr_comm_stop, 4);
 
 	if (rc == ETIMEDOUT) {
 		LogMajor(COMPONENT_THREAD,
