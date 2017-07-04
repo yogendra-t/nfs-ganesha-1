@@ -196,7 +196,7 @@ BuildRequires: python-sphinx
 %endif
 %endif
 Requires(post): psmisc
-Requires(pre): shadow-utils
+Requires(pre): /usr/sbin/useradd
 
 # Use CMake variables
 
