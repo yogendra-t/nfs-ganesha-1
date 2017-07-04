@@ -196,7 +196,7 @@ BuildRequires: python-sphinx
 %endif
 %endif
 Requires(post): psmisc
-Requires(pre): shadow-utils
+Requires(pre): /usr/sbin/useradd
 
 %if ( 0%{?fedora} >= 30 || 0%{?rhel} >= 8 )
 Requires: nfs-ganesha-selinux = %{version}-%{release}
