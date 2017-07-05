@@ -13,8 +13,14 @@
 %endif
 
 %if ( 0%{?suse_version} )
+BuildRequires: distribution-release
+%if ( ! 0%{?is_opensuse} )
 BuildRequires: sles-release >= 12
 Requires: sles-release >= 12
+%else
+BuildRequires: openSUSE-release
+Requires: openSUSE-release
+%endif
 
 %global with_systemd 1
 %global with_nfsidmap 1
@@ -80,13 +86,13 @@ Requires: sles-release >= 12
 @BCOND_MAN_PAGE@ man_page
 %global use_man_page %{on_off_switch man_page}
 
-%global dev_version %{lua: extraver = string.gsub('@GANESHA_EXTRA_VERSION@', '%-', '.'); print(extraver) }
+%global dev_version %{lua: extraver = string.gsub('@GANESHA_EXTRA_VERSION@', '^%-', ''); print(extraver) }
 
 %define sourcename @CPACK_SOURCE_PACKAGE_FILE_NAME@
 
 Name:		nfs-ganesha
 Version:	@GANESHA_BASE_VERSION@
-Release:	0%{dev_version}%{?dist}
+Release:	%{dev_version}%{?dist}
 Summary:	NFS-Ganesha is a NFS Server running in user space
 Group:		Applications/System
 License:	LGPLv3+
@@ -151,7 +157,7 @@ BuildRequires:	initscripts
 BuildRequires: python-sphinx
 %endif
 Requires(post): psmisc
-Requires(pre): shadow-utils
+Requires(pre): /usr/sbin/useradd
 
 # Use CMake variables
 
@@ -206,8 +212,13 @@ BuildRequires:	PyQt4-devel
 Requires:	PyQt4
 %endif
 %endif
+%if ( 0%{?suse_version} )
+BuildRequires:  python-devel
+Requires: nfs-ganesha = %{version}-%{release}, python
+%else
 BuildRequires:  python2-devel
 Requires: nfs-ganesha = %{version}-%{release}, python2
+%endif
 
 %description utils
 This package contains utility scripts for managing the NFS-GANESHA server
@@ -369,7 +380,14 @@ cmake .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DDISTNAME_HAS_GIT_DATA=OFF			\
 	-DUSE_MAN_PAGE=%{use_man_page}                  \
 %if %{with jemalloc}
-	-DALLOCATOR=jemalloc
+	-DALLOCATOR=jemalloc 				\
+%endif
+%if %{with gpfs}
+	-D_MSPAC_SUPPORT=ON						\
+	-DWBCLIENT_INCLUDE_DIR=/usr/lpp/mmfs/include/samba-4.0		\
+	-DWBCLIENT_LIBRARIES=/usr/lpp/mmfs/lib64/libwbclient.so.0	\
+	-DCMAKE_INSTALL_RPATH=/usr/lpp/mmfs/lib64/			\
+	-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON
 %endif
 
 make %{?_smp_mflags} || make %{?_smp_mflags} || make
