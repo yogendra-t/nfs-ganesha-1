@@ -1,8 +1,8 @@
-nfs-ganesha (2.5.0-ibm008.10) xenial; urgency=medium
+nfs-ganesha (2.5.0-ibm008.12) xenial; urgency=medium
 
-  * nfs-ganesha 2.5.0-ibm008.10
+  * nfs-ganesha 2.5.0-ibm008.12
 
- -- Malahal Naineni <malahal@us.ibm.com>  Mon, 10 Jul 2017 04:48:22 -0500
+ -- Malahal Naineni <malahal@us.ibm.com>  Tue, 18 Jul 2017 04:48:22 -0500
 
 nfs-ganesha (2.5.0-ibm007) xenial; urgency=medium
 

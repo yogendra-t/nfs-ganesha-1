@@ -44,7 +44,7 @@ set(GANESHA_PATCH_LEVEL .0)
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -ibm008.10)
+set(GANESHA_EXTRA_VERSION -ibm008.12)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -588,7 +588,7 @@ endif(USE_FSAL_CEPH)
 
 if(USE_FSAL_RGW)
   # require RGW w/API version 1.1.x
-  find_package(RGW 1.1.2)
+  find_package(RGW 1.1.4)
   if(NOT RGW_FOUND)
     if(STRICT_PACKAGE)
       message(FATAL_ERROR "STRICT_PACKAGE : Cannot find RGW runtime.  Disabling RGW fsal build")
