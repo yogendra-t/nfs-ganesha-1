@@ -2587,6 +2587,9 @@ again:
 				     try_openflags);
 
 			if (!mdcache_lru_fds_available()) {
+				PTHREAD_RWLOCK_unlock(
+						&obj_hdl->obj_lock);
+				*has_lock = false;
 				/* This seems the best idea, let the
 				 * client try again later after the reap.
 				 */
