@@ -1564,7 +1564,14 @@ void free_export_resources(struct gsh_export *export)
 
 static bool init_export_cb(struct gsh_export *exp, void *state)
 {
-	return !(init_export_root(exp));
+	struct glist_head *errlist = state;
+
+	if (init_export_root(exp)) {
+		glist_del(&exp->exp_list);
+		glist_add(errlist, &exp->exp_list);
+	}
+
+	return true;
 }
 
 /**
@@ -1573,7 +1580,17 @@ static bool init_export_cb(struct gsh_export *exp, void *state)
 
 void exports_pkginit(void)
 {
-	foreach_gsh_export(init_export_cb, NULL);
+	struct glist_head errlist;
+	struct glist_head *glist, *glistn;
+	struct gsh_export *export;
+
+	glist_init(&errlist);
+	foreach_gsh_export(init_export_cb, &errlist);
+
+	glist_for_each_safe(glist, glistn, &errlist) {
+		export = glist_entry(glist, struct gsh_export, exp_list);
+		export_revert(export);
+	}
 }
 
 /**
