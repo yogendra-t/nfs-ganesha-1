@@ -806,8 +806,12 @@ lru_reap_chunk_impl(enum lru_q_id qid, mdcache_entry_t *parent)
 					   entry, chunk);
 #endif
 
-			/* Clean the chunk out. */
+			/* Clean the chunk out and indicate the directory is no
+			 * longer completely populated.
+			 */
 			mdcache_clean_dirent_chunk(chunk);
+			atomic_clear_uint32_t_bits(&entry->mde_flags,
+						   MDCACHE_DIR_POPULATED);
 
 			/* Clean out the fields not touched by the cleanup. */
 			chunk->parent = NULL;
@@ -1502,40 +1506,14 @@ static void chunk_lru_run(struct fridgethr_context *ctx)
 		 ((uint64_t) new_thread_wait), totalwork);
 }
 
-/* Public functions */
-
-/**
- * Initialize subsystem
- */
-fsal_status_t
-mdcache_lru_pkginit(void)
+void init_fds_limit(void)
 {
-	/* Return code from system calls */
 	int code = 0;
 	/* Rlimit for open file descriptors */
 	struct rlimit rlim = {
 		.rlim_cur = RLIM_INFINITY,
 		.rlim_max = RLIM_INFINITY
 	};
-	struct fridgethr_params frp;
-
-	memset(&frp, 0, sizeof(struct fridgethr_params));
-	frp.thr_max = 2;
-	frp.thr_min = 2;
-	frp.thread_delay = mdcache_param.lru_run_interval;
-	frp.flavor = fridgethr_flavor_looper;
-
-	atomic_store_size_t(&open_fd_count, 0);
-
-	/* Set high and low watermark for cache entries.  XXX This seems a
-	   bit fishy, so come back and revisit this. */
-	lru_state.entries_hiwat = mdcache_param.entries_hwmark;
-	lru_state.entries_used = 0;
-
-	/* Set high and low watermark for chunks.  XXX This seems a
-	   bit fishy, so come back and revisit this. */
-	lru_state.chunks_hiwat = mdcache_param.chunks_hwmark;
-	lru_state.chunks_used = 0;
 
 	/* Find out the system-imposed file descriptor limit */
 	if (getrlimit(RLIMIT_NOFILE, &rlim) != 0) {
@@ -1621,10 +1599,41 @@ err_open:
 	lru_state.biggest_window =
 	    (mdcache_param.biggest_window *
 	     lru_state.fds_system_imposed) / 100;
+}
 
+/* Public functions */
+
+/**
+ * Initialize subsystem
+ */
+fsal_status_t
+mdcache_lru_pkginit(void)
+{
+	/* Return code from system calls */
+	int code = 0;
+	struct fridgethr_params frp;
+
+	memset(&frp, 0, sizeof(struct fridgethr_params));
+	frp.thr_max = 2;
+	frp.thr_min = 2;
+	frp.thread_delay = mdcache_param.lru_run_interval;
+	frp.flavor = fridgethr_flavor_looper;
+
+	atomic_store_size_t(&open_fd_count, 0);
 	lru_state.prev_fd_count = 0;
-
 	lru_state.caching_fds = mdcache_param.use_fd_cache;
+	init_fds_limit();
+
+	/* Set high and low watermark for cache entries.  XXX This seems a
+	   bit fishy, so come back and revisit this. */
+	lru_state.entries_hiwat = mdcache_param.entries_hwmark;
+	lru_state.entries_used = 0;
+
+	/* Set high and low watermark for chunks.  XXX This seems a
+	   bit fishy, so come back and revisit this. */
+	lru_state.chunks_hiwat = mdcache_param.chunks_hwmark;
+	lru_state.chunks_used = 0;
+
 
 	/* init queue complex */
 	lru_init_queues();
