@@ -518,8 +518,9 @@ static inline void nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
 int nfs_rpc_create_chan_v40(nfs_client_id_t *clientid, uint32_t flags)
 {
 	struct netbuf raddr;
-	int fd, proto, code = 0;
+	int proto, code = 0;
 	rpc_call_channel_t *chan = &clientid->cid_cb.v40.cb_chan;
+	struct gfd gfd;
 
 	assert(!chan->clnt);
 	assert(clientid->cid_minorversion == 0);
@@ -533,7 +534,8 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *clientid, uint32_t flags)
 	chan->type = RPC_CHAN_V40;
 	chan->source.clientid = clientid;
 
-	code = nfs_clid_connected_socket(clientid, &fd, &proto);
+	code = nfs_clid_connected_socket(clientid, &gfd.fd, &proto);
+	gfd.gen = rpc_get_next_fdgen();
 	if (code) {
 		LogWarn(COMPONENT_NFS_CB, "Failed creating socket");
 		goto out;
@@ -544,7 +546,7 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *clientid, uint32_t flags)
 	switch (proto) {
 	case IPPROTO_TCP:
 		raddr.maxlen = raddr.len = sizeof(struct sockaddr_in);
-		chan->clnt = clnt_vc_create(fd, &raddr,
+		chan->clnt = clnt_vc_create(gfd, &raddr,
 					    clientid->cid_cb.v40.cb_program,
 					    NFS_CB /* Errata ID: 2291 */,
 					    0, 0);
@@ -556,7 +558,7 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *clientid, uint32_t flags)
 		break;
 	case IPPROTO_UDP:
 		raddr.maxlen = raddr.len = sizeof(struct sockaddr_in6);
-		chan->clnt = clnt_dg_create(fd, &raddr,
+		chan->clnt = clnt_dg_create(gfd, &raddr,
 					    clientid->cid_cb.v40.cb_program,
 					    NFS_CB /* Errata ID: 2291 */,
 					    0, 0);
@@ -566,7 +568,7 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *clientid, uint32_t flags)
 	}
 
 	if (!chan->clnt) {
-		close(fd);
+		close(gfd.fd);
 		code = EINVAL;
 		goto out;
 	}

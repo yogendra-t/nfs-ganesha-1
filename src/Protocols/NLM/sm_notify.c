@@ -53,7 +53,7 @@ int main(int argc, char **argv)
 
 	struct sockaddr_in local_addr;
 
-	int fd;
+	struct gfd gfd;
 
 	while ((c = getopt(argc, argv, "p:r:m:l:s:")) != EOF)
 		switch (c) {
@@ -102,8 +102,9 @@ int main(int argc, char **argv)
 
 
 	/* create a udp socket */
-	fd = socket(PF_INET, SOCK_DGRAM|SOCK_NONBLOCK, IPPROTO_UDP);
-	if (fd < 0) {
+	gfd.fd = socket(PF_INET, SOCK_DGRAM|SOCK_NONBLOCK, IPPROTO_UDP);
+	gfd.gen = rpc_get_next_fdgen();
+	if (gfd.fd < 0) {
 		fprintf(stderr, "socket call failed. errno=%d\n", errno);
 		exit(1);
 	}
@@ -114,7 +115,7 @@ int main(int argc, char **argv)
 	local_addr.sin_port = htons(port);
 	local_addr.sin_addr.s_addr = inet_addr(local_addr_s);
 
-	if (bind(fd, (struct sockaddr *)&local_addr,
+	if (bind(gfd.fd, (struct sockaddr *)&local_addr,
 			sizeof(struct sockaddr)) < 0) {
 		fprintf(stderr, "bind call failed. errno=%d\n", errno);
 		exit(1);
@@ -130,7 +131,7 @@ int main(int argc, char **argv)
 	 * client side blocking rpc call
 	 */
 	if (buf == NULL) {
-		close(fd);
+		close(gfd.fd);
 		exit(1);
 	}
 
@@ -139,7 +140,7 @@ int main(int argc, char **argv)
 		htons(((struct sockaddr_in *)
 		buf->buf)->sin_port));
 
-	clnt = clnt_dg_ncreate(fd, buf, SM_PROG,
+	clnt = clnt_dg_ncreate(gfd, buf, SM_PROG,
 			SM_VERS, 0, 0);
 
 	arg.my_name = mon_client;
@@ -151,7 +152,7 @@ int main(int argc, char **argv)
 	gsh_free(buf);
 	clnt_destroy(clnt);
 
-	close(fd);
+	close(gfd.fd);
 
 	return 0;
 }

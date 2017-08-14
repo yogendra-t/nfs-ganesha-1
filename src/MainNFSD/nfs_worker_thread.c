@@ -816,7 +816,7 @@ void nfs_rpc_execute(request_data_t *reqdata)
 
 			LogFullDebug(COMPONENT_DISPATCH,
 				     "Before svc_sendreply on socket %d (dup req)",
-				     xprt->xp_fd);
+				     xprt->xp_fd.fd);
 
 			DISP_SLOCK(xprt);
 			if (!svc_sendreply(xprt, &reqdata->r_u.req.svc,
@@ -825,7 +825,7 @@ void nfs_rpc_execute(request_data_t *reqdata)
 				LogDebug(COMPONENT_DISPATCH,
 					 "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply on a duplicate request. rpcxid=%u socket=%d function:%s client:%s program:%d nfs version:%d proc:%d xid:%u errno: %d",
 					 reqdata->r_u.req.svc.rq_xid,
-					 xprt->xp_fd,
+					 xprt->xp_fd.fd,
 					 reqdesc->funcname,
 					 client_ip,
 					 (int)reqdata->r_u.req.svc.rq_prog,
@@ -1331,7 +1331,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 		goto freeargs;
 	} else {
 		LogFullDebug(COMPONENT_DISPATCH,
-			     "Before svc_sendreply on socket %d", xprt->xp_fd);
+			     "Before svc_sendreply on socket %d",
+			     xprt->xp_fd.fd);
 
 		DISP_SLOCK(xprt);
 
@@ -1341,7 +1342,7 @@ void nfs_rpc_execute(request_data_t *reqdata)
 				   (caddr_t) res_nfs)) {
 			LogDebug(COMPONENT_DISPATCH,
 				 "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply on a new request. rpcxid=%u socket=%d function:%s client:%s program:%d nfs version:%d proc:%d xid:%u errno: %d",
-				 reqdata->r_u.req.svc.rq_xid, xprt->xp_fd,
+				 reqdata->r_u.req.svc.rq_xid, xprt->xp_fd.fd,
 				 reqdesc->funcname,
 				 client_ip,
 				 (int)reqdata->r_u.req.svc.rq_prog,
@@ -1354,7 +1355,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 		}
 
 		LogFullDebug(COMPONENT_DISPATCH,
-			     "After svc_sendreply on socket %d", xprt->xp_fd);
+			     "After svc_sendreply on socket %d",
+			     xprt->xp_fd.fd);
 
 	}			/* rc == NFS_REQ_DROP */
 

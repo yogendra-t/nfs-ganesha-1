@@ -1165,7 +1165,8 @@ state_nlm_client_t *get_nlm_client(care_t care, SVCXPRT *xprt,
 	key.slc_client_type = svc_get_xprt_type(xprt);
 
 	addr_len = sizeof(local_addr);
-	if (getsockname(xprt->xp_fd, (struct sockaddr *)&local_addr, &addr_len)
+	if (getsockname(xprt->xp_fd.fd, (struct sockaddr *)&local_addr,
+			&addr_len)
 	    == -1) {
 		LogEvent(COMPONENT_CLIENTID, "Failed to get local addr.");
 	} else {

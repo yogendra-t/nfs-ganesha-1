@@ -131,8 +131,8 @@ struct netconfig *netconfig_udpv6;
 struct netconfig *netconfig_tcpv6;
 
 /* RPC Service Sockets and Transports */
-int udp_socket[P_COUNT];
-int tcp_socket[P_COUNT];
+struct gfd udp_socket[P_COUNT];
+struct gfd tcp_socket[P_COUNT];
 SVCXPRT *udp_xprt[P_COUNT];
 SVCXPRT *tcp_xprt[P_COUNT];
 
@@ -199,10 +199,10 @@ static void close_rpc_fd(void)
 	protos p;
 
 	for (p = P_NFS; p < P_COUNT; p++) {
-		if (udp_socket[p] != -1)
-			close(udp_socket[p]);
-		if (tcp_socket[p] != -1)
-			close(tcp_socket[p]);
+		if (udp_socket[p].fd != -1)
+			close(udp_socket[p].fd);
+		if (tcp_socket[p].fd != -1)
+			close(tcp_socket[p].fd);
 	}
 }
 
@@ -311,7 +311,7 @@ static int Bind_sockets_V6(void)
 			pdatap->bindaddr_udp6.qlen = SOMAXCONN;
 			pdatap->bindaddr_udp6.addr = pdatap->netbuf_udp6;
 
-			if (!__rpc_fd2sockinfo(udp_socket[p],
+			if (!__rpc_fd2sockinfo(udp_socket[p].fd,
 			    &pdatap->si_udp6)) {
 				LogWarn(COMPONENT_DISPATCH,
 					 "Cannot get %s socket info for udp6 socket errno=%d (%s)",
@@ -319,7 +319,7 @@ static int Bind_sockets_V6(void)
 				return -1;
 			}
 
-			rc = bind(udp_socket[p],
+			rc = bind(udp_socket[p].fd,
 			      (struct sockaddr *)pdatap->bindaddr_udp6.addr.buf,
 				  (socklen_t) pdatap->si_udp6.si_alen);
 			if (rc == -1) {
@@ -345,7 +345,7 @@ static int Bind_sockets_V6(void)
 			pdatap->bindaddr_tcp6.qlen = SOMAXCONN;
 			pdatap->bindaddr_tcp6.addr = pdatap->netbuf_tcp6;
 
-			if (!__rpc_fd2sockinfo(tcp_socket[p],
+			if (!__rpc_fd2sockinfo(tcp_socket[p].fd,
 			    &pdatap->si_tcp6)) {
 				LogWarn(COMPONENT_DISPATCH,
 					 "Cannot get %s socket info for tcp6 socket errno=%d (%s)",
@@ -353,7 +353,7 @@ static int Bind_sockets_V6(void)
 				return -1;
 			}
 
-			rc = bind(tcp_socket[p],
+			rc = bind(tcp_socket[p].fd,
 				  (struct sockaddr *)
 				   pdatap->bindaddr_tcp6.addr.buf,
 				 (socklen_t) pdatap->si_tcp6.si_alen);
@@ -399,7 +399,7 @@ static int Bind_sockets_V4(void)
 			pdatap->bindaddr_udp6.qlen = SOMAXCONN;
 			pdatap->bindaddr_udp6.addr = pdatap->netbuf_udp6;
 
-			if (!__rpc_fd2sockinfo(udp_socket[p],
+			if (!__rpc_fd2sockinfo(udp_socket[p].fd,
 			    &pdatap->si_udp6)) {
 				LogWarn(COMPONENT_DISPATCH,
 					"Cannot get %s socket info for udp6 socket errno=%d (%s)",
@@ -407,7 +407,7 @@ static int Bind_sockets_V4(void)
 				return -1;
 			}
 
-			rc = bind(udp_socket[p],
+			rc = bind(udp_socket[p].fd,
 				  (struct sockaddr *)
 				  pdatap->bindaddr_udp6.addr.buf,
 				  (socklen_t) pdatap->si_udp6.si_alen);
@@ -434,7 +434,7 @@ static int Bind_sockets_V4(void)
 			pdatap->bindaddr_tcp6.qlen = SOMAXCONN;
 			pdatap->bindaddr_tcp6.addr = pdatap->netbuf_tcp6;
 
-			if (!__rpc_fd2sockinfo(tcp_socket[p],
+			if (!__rpc_fd2sockinfo(tcp_socket[p].fd,
 			    &pdatap->si_tcp6)) {
 				LogWarn(COMPONENT_DISPATCH,
 					"V4 : Cannot get %s socket info for tcp socket error %d(%s)",
@@ -442,7 +442,7 @@ static int Bind_sockets_V4(void)
 				return -1;
 			}
 
-			rc = bind(tcp_socket[p],
+			rc = bind(tcp_socket[p].fd,
 				  (struct sockaddr *)
 				  pdatap->bindaddr_tcp6.addr.buf,
 				  (socklen_t) pdatap->si_tcp6.si_alen);
@@ -493,7 +493,7 @@ static int alloc_socket_setopts(int p)
 
 	/* Use SO_REUSEADDR in order to avoid wait
 	 * the 2MSL timeout */
-	if (setsockopt(udp_socket[p],
+	if (setsockopt(udp_socket[p].fd,
 		       SOL_SOCKET, SO_REUSEADDR,
 		       &one, sizeof(one))) {
 		LogWarn(COMPONENT_DISPATCH,
@@ -503,7 +503,7 @@ static int alloc_socket_setopts(int p)
 		return -1;
 	}
 
-	if (setsockopt(tcp_socket[p],
+	if (setsockopt(tcp_socket[p].fd,
 		       SOL_SOCKET, SO_REUSEADDR,
 		       &one, sizeof(one))) {
 		LogWarn(COMPONENT_DISPATCH,
@@ -514,7 +514,7 @@ static int alloc_socket_setopts(int p)
 	}
 
 	if (nfs_param.core_param.enable_tcp_keepalive) {
-		if (setsockopt(tcp_socket[p],
+		if (setsockopt(tcp_socket[p].fd,
 			       SOL_SOCKET, SO_KEEPALIVE,
 			       &one, sizeof(one))) {
 			LogWarn(COMPONENT_DISPATCH,
@@ -527,7 +527,7 @@ static int alloc_socket_setopts(int p)
 
 	/* We prefer using non-blocking socket
 	 * in the specific case */
-	if (fcntl(udp_socket[p], F_SETFL, FNDELAY) == -1) {
+	if (fcntl(udp_socket[p].fd, F_SETFL, FNDELAY) == -1) {
 		LogWarn(COMPONENT_DISPATCH,
 			"Cannot set udp socket for %s as non blocking, error %d(%s)",
 			tags[p], errno, strerror(errno));
@@ -544,11 +544,12 @@ static int alloc_socket_setopts(int p)
  */
 static int Allocate_sockets_V4(int p)
 {
-	udp_socket[p] = socket(AF_INET,
+	udp_socket[p].fd = socket(AF_INET,
 			       SOCK_DGRAM,
 			       IPPROTO_UDP);
+	udp_socket[p].gen = rpc_get_next_fdgen();
 
-	if (udp_socket[p] == -1) {
+	if (udp_socket[p].fd == -1) {
 		if (errno == EAFNOSUPPORT) {
 			LogInfo(COMPONENT_DISPATCH,
 				"No V6 and V4 intfs configured?!");
@@ -561,11 +562,12 @@ static int Allocate_sockets_V4(int p)
 		return -1;
 	}
 
-	tcp_socket[p] = socket(AF_INET,
+	tcp_socket[p].fd = socket(AF_INET,
 			       SOCK_STREAM,
 			       IPPROTO_TCP);
+	tcp_socket[p].gen = rpc_get_next_fdgen();
 
-	if (tcp_socket[p] == -1) {
+	if (tcp_socket[p].fd == -1) {
 		LogWarn(COMPONENT_DISPATCH,
 			"Cannot allocate a tcp socket for %s, error %d(%s)",
 			tags[p], errno, strerror(errno));
@@ -590,17 +592,18 @@ static void Allocate_sockets(void)
 		if (test_for_additional_nfs_protocols(p)) {
 			/* Initialize all the sockets to -1 because
 			 * it makes some code later easier */
-			udp_socket[p] = -1;
-			tcp_socket[p] = -1;
+			udp_socket[p].fd = -1;
+			tcp_socket[p].fd = -1;
 
 			if (v6disabled)
 				goto try_V4;
 
-			udp_socket[p] = socket(AF_INET6,
+			udp_socket[p].fd = socket(AF_INET6,
 					       SOCK_DGRAM,
 					       IPPROTO_UDP);
+			udp_socket[p].gen = rpc_get_next_fdgen();
 
-			if (udp_socket[p] == -1) {
+			if (udp_socket[p].fd == -1) {
 				/*
 				 * We assume that EAFNOSUPPORT points
 				 * to the likely case when the host has
@@ -622,9 +625,10 @@ static void Allocate_sockets(void)
 					 tags[p], errno, strerror(errno));
 			}
 
-			tcp_socket[p] = socket(AF_INET6,
+			tcp_socket[p].fd = socket(AF_INET6,
 					       SOCK_STREAM,
 					       IPPROTO_TCP);
+			tcp_socket[p].gen = rpc_get_next_fdgen();
 
 			/* We fail with LogFatal here on error because it
 			 * shouldn't be that we have managed to create a
@@ -634,7 +638,7 @@ static void Allocate_sockets(void)
 			 * the first udp sock create and would have moved
 			 * on to create the V4 sockets.
 			 */
-			if (tcp_socket[p] == -1)
+			if (tcp_socket[p].fd == -1)
 				LogFatal(COMPONENT_DISPATCH,
 					 "Cannot allocate a tcp socket for %s, error %d(%s)",
 					 tags[p], errno, strerror(errno));
@@ -846,22 +850,22 @@ void nfs_Init_svc(void)
 		 * and RPCSEC_GSS matter */
 		LogDebug(COMPONENT_DISPATCH,
 			 "Socket numbers are: nfs_udp=%u  nfs_tcp=%u mnt_udp=%u  mnt_tcp=%u nlm_tcp=%u nlm_udp=%u",
-			 udp_socket[P_NFS], tcp_socket[P_NFS],
-			 udp_socket[P_MNT], tcp_socket[P_MNT],
-			 udp_socket[P_NLM], tcp_socket[P_NLM]);
+			 udp_socket[P_NFS].fd, tcp_socket[P_NFS].fd,
+			 udp_socket[P_MNT].fd, tcp_socket[P_MNT].fd,
+			 udp_socket[P_NLM].fd, tcp_socket[P_NLM].fd);
 	} else {
 		/* Some log that can be useful when debug ONC/RPC
 		 * and RPCSEC_GSS matter */
 		LogDebug(COMPONENT_DISPATCH,
 			 "Socket numbers are: nfs_udp=%u  nfs_tcp=%u",
-			 udp_socket[P_NFS], tcp_socket[P_NFS]);
+			 udp_socket[P_NFS].fd, tcp_socket[P_NFS].fd);
 	}
 
 	/* Some log that can be useful when debug ONC/RPC
 	 * and RPCSEC_GSS matter */
 	LogDebug(COMPONENT_DISPATCH,
 		 "Socket numbers are: rquota_udp=%u  rquota_tcp=%u",
-		 udp_socket[P_RQUOTA], tcp_socket[P_RQUOTA]);
+		 udp_socket[P_RQUOTA].fd, tcp_socket[P_RQUOTA].fd);
 
 	if ((nfs_param.core_param.core_options &
 	     CORE_OPTION_ALL_NFS_VERS) != 0) {
@@ -1740,7 +1744,8 @@ enum xprt_stat thr_decode_rpc_request(void *context, SVCXPRT *xprt)
 #endif
 
 	LogFullDebug(COMPONENT_DISPATCH,
-		     "SVC_RECV on socket %d returned %s, xid=%u", xprt->xp_fd,
+		     "SVC_RECV on socket %d returned %s, xid=%u",
+		     xprt->xp_fd.fd,
 		     (recv_status) ? "true" : "false",
 		     (reqdata->r_u.req.svc.rq_msg)
 		     ? reqdata->r_u.req.svc.rq_msg->rm_xid
@@ -1775,20 +1780,20 @@ enum xprt_stat thr_decode_rpc_request(void *context, SVCXPRT *xprt)
 			/* typically, a new connection */
 			LogDebug(COMPONENT_DISPATCH,
 				 "Client on socket=%d, addr=%s has status XPRT_IDLE",
-				 xprt->xp_fd, addrbuf);
+				 xprt->xp_fd.fd, addrbuf);
 		} else if (stat == XPRT_DIED) {
 			LogDebug(COMPONENT_DISPATCH,
 				 "Client on socket=%d, addr=%s disappeared (XPRT_DIED)",
-				 xprt->xp_fd, addrbuf);
+				 xprt->xp_fd.fd, addrbuf);
 		} else if (stat == XPRT_MOREREQS) {
 			/* unexpected case */
 			LogDebug(COMPONENT_DISPATCH,
 				 "Client on socket=%d, addr=%s has status XPRT_MOREREQS",
-				 xprt->xp_fd, addrbuf);
+				 xprt->xp_fd.fd, addrbuf);
 		} else {
 			LogDebug(COMPONENT_DISPATCH,
 				 "Client on socket=%d, addr=%s has unknown status (%d)",
-				 xprt->xp_fd, addrbuf, stat);
+				 xprt->xp_fd.fd, addrbuf, stat);
 		}
 		goto done;
 	}
@@ -1908,38 +1913,38 @@ static bool nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
 	/* The following actions are now purely diagnostic, the only side effect
 	 * is a message to the log. */
 	int code = 0;
-	int rpc_fd = xprt->xp_fd;
+	int rpc_fd = xprt->xp_fd.fd;
 	uint32_t nreqs;
 
 	LogFullDebug(COMPONENT_RPC, "enter xprt=%p", xprt);
 
-	if (udp_socket[P_NFS] == rpc_fd)
+	if (udp_socket[P_NFS].fd == rpc_fd)
 		LogFullDebug(COMPONENT_DISPATCH, "A NFS UDP request fd %d",
 			     rpc_fd);
-	else if (udp_socket[P_MNT] == rpc_fd)
+	else if (udp_socket[P_MNT].fd == rpc_fd)
 		LogFullDebug(COMPONENT_DISPATCH, "A MOUNT UDP request %d",
 			     rpc_fd);
-	else if (udp_socket[P_NLM] == rpc_fd)
+	else if (udp_socket[P_NLM].fd == rpc_fd)
 		LogFullDebug(COMPONENT_DISPATCH, "A NLM UDP request %d",
 			     rpc_fd);
-	else if (udp_socket[P_RQUOTA] == rpc_fd)
+	else if (udp_socket[P_RQUOTA].fd == rpc_fd)
 		LogFullDebug(COMPONENT_DISPATCH, "A RQUOTA UDP request %d",
 			     rpc_fd);
-	else if (tcp_socket[P_NFS] == rpc_fd) {
+	else if (tcp_socket[P_NFS].fd == rpc_fd) {
 		/* In this case, the SVC_RECV only produces a new connected
 		 * socket (it does just a call to accept) */
 		LogFullDebug(COMPONENT_DISPATCH,
 			     "An initial NFS TCP request from a new client %d",
 			     rpc_fd);
-	} else if (tcp_socket[P_MNT] == rpc_fd)
+	} else if (tcp_socket[P_MNT].fd == rpc_fd)
 		LogFullDebug(COMPONENT_DISPATCH,
 			     "An initial MOUNT TCP request from a new client %d",
 			     rpc_fd);
-	else if (tcp_socket[P_NLM] == rpc_fd)
+	else if (tcp_socket[P_NLM].fd == rpc_fd)
 		LogFullDebug(COMPONENT_DISPATCH,
 			     "An initial NLM request from a new client %d",
 			     rpc_fd);
-	else if (tcp_socket[P_RQUOTA] == rpc_fd)
+	else if (tcp_socket[P_RQUOTA].fd == rpc_fd)
 		LogFullDebug(COMPONENT_DISPATCH,
 			     "An initial RQUOTA request from a new client %d",
 			     rpc_fd);
@@ -2055,7 +2060,7 @@ static int nfs_rpc_get_args(nfs_request_t *reqnfs)
 
 	LogFullDebug(COMPONENT_DISPATCH,
 		     "Before svc_getargs on socket %d, xprt=%p",
-		     xprt->xp_fd, xprt);
+		     xprt->xp_fd.fd, xprt);
 
 	if (!svc_getargs(xprt, &reqnfs->svc, reqnfs->funcdesc->xdr_decode_func,
 			(caddr_t) arg_nfs, &reqnfs->lookahead)) {

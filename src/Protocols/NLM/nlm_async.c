@@ -158,15 +158,17 @@ int nlm_send_async(int proc, state_nlm_client_t *host, void *inarg, void *key)
 				     host->slc_nsm_client->ssc_nlm_caller_name);
 
 			if (host->slc_client_type == XPRT_TCP) {
-				int fd;
+				struct gfd gfd;
 				struct sockaddr_in6 server_addr;
 				struct netbuf *buf, local_buf;
 				struct addrinfo *result;
 				struct addrinfo hints;
 				char port_str[20];
 
-				fd = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
-				if (fd < 0)
+				gfd.fd = socket(PF_INET6, SOCK_STREAM,
+						IPPROTO_TCP);
+				gfd.gen = rpc_get_next_fdgen();
+				if (gfd.fd < 0)
 					return -1;
 
 				memcpy(&server_addr,
@@ -174,11 +176,11 @@ int nlm_send_async(int proc, state_nlm_client_t *host, void *inarg, void *key)
 				       sizeof(struct sockaddr_in6));
 				server_addr.sin6_port = 0;
 
-				if (bind(fd,
+				if (bind(gfd.fd,
 					 (struct sockaddr *)&server_addr,
 					  sizeof(server_addr)) == -1) {
 					LogMajor(COMPONENT_NLM, "Cannot bind");
-					close(fd);
+					close(gfd.fd);
 					return -1;
 				}
 
@@ -197,7 +199,7 @@ int nlm_send_async(int proc, state_nlm_client_t *host, void *inarg, void *key)
 							host->slc_client_type),
 						 host->slc_nsm_client->
 						 ssc_nlm_caller_name);
-					close(fd);
+					close(gfd.fd);
 					return -1;
 				}
 
@@ -252,7 +254,7 @@ int nlm_send_async(int proc, state_nlm_client_t *host, void *inarg, void *key)
 				    result->ai_addrlen;
 
 				host->slc_callback_clnt =
-				    clnt_vc_ncreate(fd, &local_buf, NLMPROG,
+				    clnt_vc_ncreate(gfd, &local_buf, NLMPROG,
 						    NLM4_VERS, 0, 0);
 				freeaddrinfo(result);
 			} else {
