@@ -135,7 +135,7 @@ int mnt_Mnt(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 		pfsal_handle = entry->obj_handle;
 	} else {
-		LogEvent(COMPONENT_NFSPROTO,
+		LogInfo(COMPONENT_NFSPROTO,
 			 "MOUNT: Performance warning: Export entry is not cached");
 
 		if (FSAL_IS_ERROR(op_ctx->fsal_export->exp_ops.lookup_path(
