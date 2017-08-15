@@ -248,8 +248,8 @@ void LogClientListEntry(log_components_t component,
 		return;
 
 	case PROTO_CLIENT:
-		LogCrit(component, "  %p PROTO_CLIENT: <unknown>(%s)", entry,
-			perms);
+		LogMidDebug(component, "  %p PROTO_CLIENT: <unknown>(%s)",
+			entry, perms);
 		return;
 	case BAD_CLIENT:
 		LogCrit(component, "  %p BAD_CLIENT: <unknown>(%s)", entry,
