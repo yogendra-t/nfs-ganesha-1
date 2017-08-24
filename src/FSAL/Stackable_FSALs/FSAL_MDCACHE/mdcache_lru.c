@@ -118,6 +118,8 @@ struct lru_q_lane {
 	 CACHE_PAD(0);
 };
 
+/* The queue lock and the partition lock interact.  The partition lock must
+ * always be taken before the queue lock to avoid deadlock */
 #ifdef USE_LTTNG
 #define QLOCK(qlane) \
 	do { \
@@ -635,17 +637,20 @@ lru_reap_impl(enum lru_q_id qid)
 
 		QLOCK(qlane);
 		lru = glist_first_entry(&lq->q, mdcache_lru_t, q);
-		if (!lru)
-			goto next_lane;
+		if (!lru) {
+			QUNLOCK(qlane);
+			continue;
+		}
 		refcnt = atomic_inc_int32_t(&lru->refcnt);
 		entry = container_of(lru, mdcache_entry_t, lru);
+		QUNLOCK(qlane);
+
 		if (unlikely(refcnt != (LRU_SENTINEL_REFCOUNT + 1))) {
 			/* cant use it. */
-			mdcache_lru_unref(entry, LRU_UNREF_QLOCKED);
-			goto next_lane;
+			mdcache_put(entry);
+			continue;
 		}
 		/* potentially reclaimable */
-		QUNLOCK(qlane);
 		/* entry must be unreachable from CIH when recycled */
 		if (cih_latch_entry(&entry->fh_hk.key, &latch, CIH_GET_WLOCK,
 				    __func__, __LINE__)) {
@@ -666,12 +671,11 @@ lru_reap_impl(enum lru_q_id qid)
 					   __LINE__, entry,
 					   entry->lru.refcnt);
 #endif
-				cih_remove_latched(entry, &latch,
-						   CIH_REMOVE_QLOCKED);
 				LRU_DQ_SAFE(lru, q);
 				entry->lru.qid = LRU_ENTRY_NONE;
 				QUNLOCK(qlane);
-				cih_hash_release(&latch);
+				cih_remove_latched(entry, &latch,
+						   CIH_REMOVE_UNLOCK);
 				/* Note, we're not releasing our ref here.
 				 * cih_remove_latched() called
 				 * mdcache_lru_unref(), which released the
@@ -682,16 +686,15 @@ lru_reap_impl(enum lru_q_id qid)
 				goto out;
 			}
 			cih_hash_release(&latch);
+			QUNLOCK(qlane);
 			/* return the ref we took above--unref deals
 			 * correctly with reclaim case */
-			mdcache_lru_unref(entry, LRU_UNREF_QLOCKED);
+			mdcache_lru_unref(entry);
 		} else {
 			/* ! QLOCKED but needs to be Unref'ed */
-			mdcache_lru_unref(entry, LRU_FLAG_NONE);
+			mdcache_lru_unref(entry);
 			continue;
 		}
- next_lane:
-		QUNLOCK(qlane);
 	}			/* foreach lane */
 
 	/* ! reclaimable */
@@ -763,8 +766,10 @@ lru_reap_chunk_impl(enum lru_q_id qid, mdcache_entry_t *parent)
 		QLOCK(qlane);
 		lru = glist_first_entry(&lq->q, mdcache_lru_t, q);
 
-		if (!lru)
-			goto next_lane;
+		if (!lru) {
+			QUNLOCK(qlane);
+			continue;
+		}
 
 		/* Get the chunk and parent entry that owns the chunk, all of
 		 * this is valid because we hold the QLANE lock, the chunk was
@@ -834,7 +839,6 @@ lru_reap_chunk_impl(enum lru_q_id qid, mdcache_entry_t *parent)
 		 * doing something with dirents... This chunk is not
 		 * eligible for reaping. Try the next lane...
 		 */
- next_lane:
 		QUNLOCK(qlane);
 	}			/* foreach lane */
 
@@ -937,7 +941,6 @@ mdcache_lru_cleanup_push(mdcache_entry_t *entry)
 		/* in with the new */
 		q = &qlane->cleanup;
 		lru_insert(lru, q, LRU_LRU);
-		++(q->size);
 	}
 
 	QUNLOCK(qlane);
@@ -984,8 +987,6 @@ mdcache_lru_cleanup_try_push(mdcache_entry_t *entry)
 			/* it worked */
 			struct lru_q *q = lru_queue_of(entry);
 
-			cih_remove_latched(entry, &latch,
-					   CIH_REMOVE_QLOCKED);
 			LRU_DQ_SAFE(lru, q);
 			entry->lru.qid = LRU_ENTRY_CLEANUP;
 			atomic_set_uint32_t_bits(&entry->lru.flags,
@@ -998,9 +999,12 @@ mdcache_lru_cleanup_try_push(mdcache_entry_t *entry)
 			 * indicate this entry is unmapped.
 			 */
 			atomic_store_int32_t(&entry->first_export_id, -1);
-		}
 
-		QUNLOCK(qlane);
+			QUNLOCK(qlane);
+			cih_remove_latched(entry, &latch, CIH_REMOVE_NONE);
+		} else {
+			QUNLOCK(qlane);
+		}
 
 		cih_hash_release(&latch);
 	}
@@ -1071,7 +1075,9 @@ static inline size_t lru_run_lane(size_t lane, uint64_t *const totalclosed)
 			 * we could possibly release references in
 			 * mdcache_new_entry.
 			 */
-			mdcache_lru_unref(entry, LRU_UNREF_QLOCKED);
+			QUNLOCK(qlane);
+			mdcache_lru_unref(entry);
+			QLOCK(qlane);
 			/* but count it */
 			workdone++;
 			/* qlane LOCKED, lru refcnt is restored */
@@ -1084,7 +1090,6 @@ static inline size_t lru_run_lane(size_t lane, uint64_t *const totalclosed)
 		lru->qid = LRU_ENTRY_L2;
 		q = &qlane->L2;
 		lru_insert(lru, q, LRU_MRU);
-		++(q->size);
 
 		/* Get a reference to the first export and build an op context
 		 * with it. By holding the QLANE lock while we get the export
@@ -1157,11 +1162,12 @@ static inline size_t lru_run_lane(size_t lane, uint64_t *const totalclosed)
 			++closed;
 		}
 
-		put_gsh_export(export);
-		op_ctx = saved_ctx;
+		mdcache_lru_unref(entry);
 
 		QLOCK(qlane); /* QLOCKED */
-		mdcache_lru_unref(entry, LRU_UNREF_QLOCKED);
+
+		put_gsh_export(export);
+		op_ctx = saved_ctx;
 		++workdone;
 	} /* for_each_safe lru */
 
@@ -1410,7 +1416,7 @@ static inline size_t chunk_lru_run_lane(size_t lane)
 
 	q = &qlane->L1;
 
-	LogDebug(COMPONENT_CACHE_INODE_LRU,
+	LogFullDebug(COMPONENT_CACHE_INODE_LRU,
 		 "Reaping up to %d chunks from lane %zd",
 		 lru_state.per_lane_work, lane);
 
@@ -1436,7 +1442,6 @@ static inline size_t chunk_lru_run_lane(size_t lane)
 		lru->qid = LRU_ENTRY_L2;
 		q = &qlane->L2;
 		lru_insert(lru, q, LRU_MRU);
-		++(q->size);
 
 		++workdone;
 	} /* for_each_safe lru */
@@ -1444,7 +1449,7 @@ static inline size_t chunk_lru_run_lane(size_t lane)
 next_lane:
 	qlane->iter.active = false; /* !ACTIVE */
 	QUNLOCK(qlane);
-	LogDebug(COMPONENT_CACHE_INODE_LRU,
+	LogFullDebug(COMPONENT_CACHE_INODE_LRU,
 		 "Actually processed %zd chunks on lane %zd",
 		 workdone, lane);
 
@@ -1484,7 +1489,7 @@ static void chunk_lru_run(struct fridgethr_context *ctx)
 
 	/* Total chunks demoted to L2 between all lanes and all current runs. */
 	for (lane = 0; lane < LRU_N_Q_LANES; ++lane) {
-		LogDebug(COMPONENT_CACHE_INODE_LRU,
+		LogFullDebug(COMPONENT_CACHE_INODE_LRU,
 			 "Reaping up to %d chunks from lane %zd totalwork=%zd",
 			 lru_state.per_lane_work, lane, totalwork);
 
@@ -1594,8 +1599,15 @@ err_open:
 	     lru_state.fds_system_imposed) / 100;
 	lru_state.futility = 0;
 
-	lru_state.per_lane_work =
-	    (mdcache_param.reaper_work + LRU_N_Q_LANES - 1) / LRU_N_Q_LANES;
+	if (mdcache_param.reaper_work) {
+		/* Backwards compatibility */
+		lru_state.per_lane_work = (mdcache_param.reaper_work +
+					   LRU_N_Q_LANES - 1) / LRU_N_Q_LANES;
+	} else {
+		/* New parameter */
+		lru_state.per_lane_work = mdcache_param.reaper_work_per_lane;
+	}
+
 	lru_state.biggest_window =
 	    (mdcache_param.biggest_window *
 	     lru_state.fds_system_imposed) / 100;
@@ -1819,7 +1831,6 @@ _mdcache_lru_ref(mdcache_entry_t *entry, uint32_t flags, const char *func,
 			/* advance entry to MRU (of L1) */
 			LRU_DQ_SAFE(lru, q);
 			lru_insert(lru, q, LRU_MRU);
-			++(q->size);
 			break;
 		case LRU_ENTRY_L2:
 			q = lru_queue_of(entry);
@@ -1828,7 +1839,6 @@ _mdcache_lru_ref(mdcache_entry_t *entry, uint32_t flags, const char *func,
 			--(q->size);
 			q = &qlane->L1;
 			lru_insert(lru, q, LRU_LRU);
-			++(q->size);
 			break;
 		default:
 			/* do nothing */
@@ -1864,11 +1874,10 @@ _mdcache_lru_unref(mdcache_entry_t *entry, uint32_t flags, const char *func,
 	bool do_cleanup = false;
 	uint32_t lane = entry->lru.lane;
 	struct lru_q_lane *qlane = &LRU[lane];
-	bool qlocked = flags & LRU_UNREF_QLOCKED;
 	bool other_lock_held = entry->fsobj.hdl.no_cleanup;
 	bool freed = false;
 
-	if (!qlocked && !other_lock_held) {
+	if (!other_lock_held) {
 		QLOCK(qlane);
 		if (((entry->lru.flags & LRU_CLEANED) == 0) &&
 		    (entry->lru.qid == LRU_ENTRY_CLEANUP)) {
@@ -1898,14 +1907,11 @@ _mdcache_lru_unref(mdcache_entry_t *entry, uint32_t flags, const char *func,
 		struct lru_q *q;
 
 		/* we MUST recheck that refcount is still 0 */
-		if (!qlocked) {
-			QLOCK(qlane);
-			refcnt = atomic_fetch_int32_t(&entry->lru.refcnt);
-		}
+		QLOCK(qlane);
+		refcnt = atomic_fetch_int32_t(&entry->lru.refcnt);
 
 		if (unlikely(refcnt > 0)) {
-			if (!qlocked)
-				QUNLOCK(qlane);
+			QUNLOCK(qlane);
 			goto out;
 		}
 
@@ -1917,8 +1923,7 @@ _mdcache_lru_unref(mdcache_entry_t *entry, uint32_t flags, const char *func,
 			LRU_DQ_SAFE(&entry->lru, q);
 		}
 
-		if (!qlocked)
-			QUNLOCK(qlane);
+		QUNLOCK(qlane);
 
 		mdcache_lru_clean(entry);
 		pool_free(mdcache_entry_pool, entry);
@@ -1979,7 +1984,6 @@ void lru_bump_chunk(struct dir_chunk *chunk)
 		/* advance chunk to MRU (of L1) */
 		LRU_DQ_SAFE(lru, q);
 		lru_insert(lru, q, LRU_MRU);
-		++(q->size);
 		break;
 	case LRU_ENTRY_L2:
 		/* move chunk to LRU of L1 */
@@ -1987,7 +1991,6 @@ void lru_bump_chunk(struct dir_chunk *chunk)
 		--(q->size);
 		q = &qlane->L1;
 		lru_insert(lru, q, LRU_LRU);
-		++(q->size);
 		break;
 	default:
 		/* do nothing */

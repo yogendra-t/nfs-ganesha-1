@@ -708,13 +708,16 @@ void remove_gsh_export(uint16_t export_id)
  */
 
 bool foreach_gsh_export(bool(*cb) (struct gsh_export *exp, void *state),
-			void *state)
+			bool wrlock, void *state)
 {
 	struct glist_head *glist, *glistn;
 	struct gsh_export *export;
 	int rc = true;
 
-	PTHREAD_RWLOCK_rdlock(&export_by_id.lock);
+	if (wrlock)
+		PTHREAD_RWLOCK_wrlock(&export_by_id.lock);
+	else
+		PTHREAD_RWLOCK_rdlock(&export_by_id.lock);
 	glist_for_each_safe(glist, glistn, &exportlist) {
 		export = glist_entry(glist, struct gsh_export, exp_list);
 		rc = cb(export, state);
@@ -761,7 +764,7 @@ void remove_all_exports(void)
 	/* Put all exports on the unexport work list.
 	 * Ignore return since remove_one_export can't fail.
 	 */
-	(void) foreach_gsh_export(remove_one_export, NULL);
+	(void) foreach_gsh_export(remove_one_export, true, NULL);
 
 	/* Now process all the unexports */
 	while (true) {
@@ -1243,7 +1246,7 @@ static bool gsh_export_showexports(DBusMessageIter *args,
 					 "(qsbbbbbbbb(tt))",
 					 &iter_state.export_iter);
 
-	(void)foreach_gsh_export(export_to_dbus, (void *)&iter_state);
+	(void)foreach_gsh_export(export_to_dbus, false, (void *)&iter_state);
 
 	dbus_message_iter_close_container(&iter, &iter_state.export_iter);
 	return true;
@@ -1741,6 +1744,24 @@ static struct gsh_dbus_method export_show_v41_layouts = {
 		 END_ARG_LIST}
 };
 
+/* Reset FSAL stats */
+static void reset_fsal_stats(void)
+{
+	/* Module iterator */
+	struct glist_head *mi = NULL;
+	/* Next module */
+	struct glist_head *mn = NULL;
+
+	glist_for_each_safe(mi, mn, &fsal_list) {
+		/* The module to reset stats */
+		struct fsal_module *m = glist_entry(mi,
+						    struct fsal_module,
+						    fsals);
+		if (m->stats != NULL)
+			m->m_ops.fsal_reset_stats(m);
+	}
+}
+
 /**
  * DBUS method to reset all ops statistics
  *
@@ -1756,6 +1777,7 @@ static bool stats_reset(DBusMessageIter *args,
 	dbus_message_iter_init_append(reply, &iter);
 	dbus_status_reply(&iter, success, errormsg);
 
+	reset_fsal_stats();
 	server_reset_stats(&iter);
 
 	return true;
@@ -1766,6 +1788,61 @@ static struct gsh_dbus_method reset_statistics = {
 	.method = stats_reset,
 	.args = {STATUS_REPLY,
 		 TIMESTAMP_REPLY,
+		 END_ARG_LIST}
+};
+
+/**
+ * DBUS method to gather FSAL statistics
+ *
+ */
+static bool stats_fsal(DBusMessageIter *args,
+			DBusMessage *reply,
+			DBusError *error)
+{
+	bool success = true;
+	char *errormsg = "OK";
+	char *fsal_name;
+	DBusMessageIter iter;
+	struct fsal_module *fsal_hdl;
+	struct root_op_context root_op_context;
+
+	dbus_message_iter_init_append(reply, &iter);
+
+	if (args == NULL) {
+		success = false;
+		errormsg = "No FSAL name provided";
+		dbus_status_reply(&iter, success, errormsg);
+		return true;
+	}
+	dbus_message_iter_get_basic(args, &fsal_name);
+	init_root_op_context(&root_op_context, NULL, NULL,
+				     0, 0, UNKNOWN_REQUEST);
+	fsal_hdl = lookup_fsal(fsal_name);
+	release_root_op_context();
+	if (fsal_hdl == NULL) {
+		success = false;
+		errormsg = "Incorrect FSAL name";
+		dbus_status_reply(&iter, success, errormsg);
+		return true;
+	}
+	if (fsal_hdl->stats == NULL) {
+		success = false;
+		errormsg = "FSAL do not support stats counting";
+		dbus_status_reply(&iter, success, errormsg);
+	} else {
+		dbus_status_reply(&iter, success, errormsg);
+		fsal_hdl->m_ops.fsal_extract_stats(fsal_hdl, &iter);
+	}
+	return true;
+}
+
+static struct gsh_dbus_method fsal_statistics = {
+	.name = "GetFSALStats",
+	.method = stats_fsal,
+	.args = {FSAL_ARG,
+		 STATUS_REPLY,
+		 TIMESTAMP_REPLY,
+		 FSAL_OPS_REPLY,
 		 END_ARG_LIST}
 };
 
@@ -1940,7 +2017,8 @@ static bool get_nfs_io(DBusMessageIter *args,
 	dbus_message_iter_open_container(&reply_iter, DBUS_TYPE_ARRAY,
 					 NFS_ALL_IO_REPLY_ARRAY_TYPE,
 					 &array_iter);
-	(void) foreach_gsh_export(&get_all_export_io, (void *) &array_iter);
+	(void) foreach_gsh_export(&get_all_export_io, false,
+				  (void *) &array_iter);
 	dbus_message_iter_close_container(&reply_iter, &array_iter);
 
 	return true;
@@ -1970,6 +2048,7 @@ static struct gsh_dbus_method *export_stats_methods[] = {
 	&cache_inode_show,
 	&export_show_all_io,
 	&reset_statistics,
+	&fsal_statistics,
 	NULL
 };
 

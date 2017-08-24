@@ -88,7 +88,7 @@ Requires: openSUSE-release
 @BCOND_MAN_PAGE@ man_page
 %global use_man_page %{on_off_switch man_page}
 
-%global dev_version %{lua: extraver = string.gsub('@GANESHA_EXTRA_VERSION@', '^%-', ''); print(extraver) }
+%global dev_version %{lua: s = string.gsub('@GANESHA_EXTRA_VERSION@', '^%-', ''); s2 = string.gsub(s, '%-', '.'); print(s2) }
 
 %define sourcename @CPACK_SOURCE_PACKAGE_FILE_NAME@
 
@@ -414,7 +414,7 @@ install -m 644 config_samples/vfs.conf %{buildroot}%{_sysconfdir}/ganesha
 %if %{with_systemd}
 mkdir -p %{buildroot}%{_unitdir}
 
-install -m 644 scripts/systemd/nfs-ganesha.service	%{buildroot}%{_unitdir}/nfs-ganesha.service
+install -m 644 scripts/systemd/nfs-ganesha.service.el7	%{buildroot}%{_unitdir}/nfs-ganesha.service
 install -m 644 scripts/systemd/nfs-ganesha-lock.service	%{buildroot}%{_unitdir}/nfs-ganesha-lock.service
 install -m 644 scripts/systemd/nfs-ganesha-config.service %{buildroot}%{_unitdir}/nfs-ganesha-config.service
 install -m 644 scripts/systemd/sysconfig/nfs-ganesha	%{buildroot}%{_sysconfdir}/sysconfig/ganesha
@@ -427,14 +427,6 @@ mkdir -p %{buildroot}%{_localstatedir}/log/ganesha
 mkdir -p %{buildroot}%{_sysconfdir}/init.d
 install -m 755 scripts/init.d/nfs-ganesha.el6		%{buildroot}%{_sysconfdir}/init.d/nfs-ganesha
 install -m 644 scripts/init.d/sysconfig/ganesha		%{buildroot}%{_sysconfdir}/sysconfig/ganesha
-%endif
-
-%if %{with man_page}
-%{_mandir}/*/ganesha-config.8.gz
-%{_mandir}/*/ganesha-core-config.8.gz
-%{_mandir}/*/ganesha-export-config.8.gz
-%{_mandir}/*/ganesha-cache-config.8.gz
-%{_mandir}/*/ganesha-log-config.8.gz
 %endif
 
 %if %{with pt}
@@ -544,6 +536,14 @@ exit 0
 %endif
 %else
 %{_sysconfdir}/init.d/nfs-ganesha
+%endif
+
+%if %{with man_page}
+%{_mandir}/*/ganesha-config.8.gz
+%{_mandir}/*/ganesha-core-config.8.gz
+%{_mandir}/*/ganesha-export-config.8.gz
+%{_mandir}/*/ganesha-cache-config.8.gz
+%{_mandir}/*/ganesha-log-config.8.gz
 %endif
 
 %files mount-9P

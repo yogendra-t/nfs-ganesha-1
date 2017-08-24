@@ -20,7 +20,7 @@ set(GANESHA_MAJOR_VERSION 2)
 set(GANESHA_MINOR_VERSION 5)
 
 IF(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-set(GANESHA_BUILD_RELEASE 1)
+set(GANESHA_BUILD_RELEASE 2)
 ELSE()
 set(GANESHA_BUILD_RELEASE 0)
 ENDIF(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
@@ -39,12 +39,12 @@ ENDIF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT OR CMAKE_INSTALL_PREFIX STREQU
 # Patch level is always ".0" for mainline (master).  It is blank for development.
 # When starting a stable maintenance branch, this becomes ".N"
 # where N is monotonically increasing starting at 1. Remember to include the "." !!
-set(GANESHA_PATCH_LEVEL .1)
+set(GANESHA_PATCH_LEVEL .2)
 
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -ibm008.15)
+set(GANESHA_EXTRA_VERSION -ibm008.16)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -912,7 +912,7 @@ set(SYSTEM_LIBRARIES
 
 # Config file; make sure it doesn't clobber an existing one
 include(${CMAKE_SOURCE_DIR}/cmake/modules/InstallPackageConfigFile.cmake)
-InstallPackageConfigFile(${CMAKE_SOURCE_DIR}/config_samples/vfs.conf ${SYSCONFDIR}/ganesha ganesha.conf)
+InstallPackageConfigFile(${CMAKE_SOURCE_DIR}/config_samples/ganesha.conf.example ${SYSCONFDIR}/ganesha ganesha.conf)
 # Sample config files
 if( ${DISTRO} MATCHES "SLES" )
   install(DIRECTORY config_samples DESTINATION share/doc/packages/ganesha)

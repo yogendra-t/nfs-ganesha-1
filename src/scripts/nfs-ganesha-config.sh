@@ -7,11 +7,13 @@
 #
 
 CONFIGFILE=/etc/sysconfig/ganesha
-if test -r ${CONFIGFILE}; then
+RUNCONFIG=/run/sysconfig/ganesha
+
+if [ -r ${CONFIGFILE} ]; then
 	. ${CONFIGFILE}
 	[ -x ${EPOCH_EXEC} ] &&  EPOCHVALUE=`${EPOCH_EXEC}`
 
-	mkdir -p /run/sysconfig
+	mkdir -p $(command dirname ${RUNCONFIG} 2>/dev/null)
 	{
 		cat ${CONFIGFILE}
 		[ -n "${EPOCHVALUE}" ] && echo EPOCH=\"-E $EPOCHVALUE\"
@@ -19,13 +21,8 @@ if test -r ${CONFIGFILE}; then
 		# Set NUMA options if numactl is present
 		NUMACTL=$(command -v numactl 2>/dev/null)
 		if [ -n "${NUMACTL}" ]; then
-			echo NUMACTL=$NUMACTL
+			echo NUMACTL=${NUMACTL}
 			echo NUMAOPTS=--interleave=all
 		fi
-		if [ -f /etc/debian_version ]; then
-			echo DBUSSEND=\"/usr/bin/dbus-send\"
-		else
-			echo DBUSSEND=\"/bin/dbus-send\"
-		fi
-	} > /run/sysconfig/ganesha
+	} > ${RUNCONFIG}
 fi
