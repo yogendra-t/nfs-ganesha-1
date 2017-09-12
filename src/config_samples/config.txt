@@ -61,9 +61,9 @@ NFS_CORE_PARAM {}
 
 	Drop_Delay_Errors(bool, default false)
 
-	Dispatch_Max_Reqs(uint32, range 1 to 10000, default 5000)
+	Dispatch_Max_Reqs(uint32, range 1 to 300000, default 5000)
 
-	Dispatch_Max_Reqs_Xprt(uint32, range 1 to 10000, default 512)
+	Dispatch_Max_Reqs_Xprt(uint32, range 1 to 10000, default 5000)
 
 	DRC_Disabled(boo, default false)
 

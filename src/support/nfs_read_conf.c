@@ -98,7 +98,7 @@ static struct config_item core_params[] = {
 		       nfs_core_param, drop_inval_errors),
 	CONF_ITEM_BOOL("Drop_Delay_Errors", false,
 		       nfs_core_param, drop_delay_errors),
-	CONF_ITEM_UI32("Dispatch_Max_Reqs", 1, 10000, 5000,
+	CONF_ITEM_UI32("Dispatch_Max_Reqs", 1, 300000, 5000,
 		       nfs_core_param, dispatch_max_reqs),
 	CONF_ITEM_UI32("Dispatch_Max_Reqs_Xprt", 1, 10000, 5000,
 		       nfs_core_param, dispatch_max_reqs_xprt),
