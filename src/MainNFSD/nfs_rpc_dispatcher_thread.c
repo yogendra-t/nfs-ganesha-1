@@ -1131,7 +1131,7 @@ static bool nfs_rpc_cond_stall_xprt(SVCXPRT *xprt)
 		return true;
 	}
 
-	LogDebug(COMPONENT_DISPATCH, "xprt %p has %u reqs, marking stalled",
+	LogEvent(COMPONENT_DISPATCH, "xprt %p has %u reqs, marking stalled",
 		 xprt, nreqs);
 
 	/* ok, need to stall */
@@ -1967,7 +1967,7 @@ static bool nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
 	nreqs = nfs_rpc_outstanding_reqs_est();
 	if (unlikely(nreqs > nfs_param.core_param.dispatch_max_reqs)) {
 		/* request queue is flow controlled */
-		LogDebug(COMPONENT_DISPATCH,
+		LogEvent(COMPONENT_DISPATCH,
 			 "global outstanding reqs quota exceeded (have %u, allowed %u)",
 			 nreqs, nfs_param.core_param.dispatch_max_reqs);
 		thread_delay_ms(5);	/* don't busy-wait */
