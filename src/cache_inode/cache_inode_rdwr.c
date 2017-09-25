@@ -106,7 +106,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t *entry,
 	} else {
 		struct export_perms *perms;
 
-		perms = &op_ctx->export->export_perms;
+		perms = op_ctx->export_perms;
 		if (perms->options & EXPORT_OPTION_COMMIT)
 			*sync = true;
 		openflags = FSAL_O_WRITE;
