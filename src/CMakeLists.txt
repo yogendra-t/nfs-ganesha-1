@@ -20,7 +20,7 @@ set(GANESHA_MAJOR_VERSION 2)
 set(GANESHA_MINOR_VERSION 5)
 
 IF(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-set(GANESHA_BUILD_RELEASE 2)
+set(GANESHA_BUILD_RELEASE 3)
 ELSE()
 set(GANESHA_BUILD_RELEASE 0)
 ENDIF(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
@@ -39,12 +39,12 @@ ENDIF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT OR CMAKE_INSTALL_PREFIX STREQU
 # Patch level is always ".0" for mainline (master).  It is blank for development.
 # When starting a stable maintenance branch, this becomes ".N"
 # where N is monotonically increasing starting at 1. Remember to include the "." !!
-set(GANESHA_PATCH_LEVEL .2)
+set(GANESHA_PATCH_LEVEL .3)
 
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -ibm008.18)
+set(GANESHA_EXTRA_VERSION -ibm008.19)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -81,6 +81,10 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   elseif( ${SYS_RELEASE} MATCHES "openSUSE Leap" )
      message( STATUS "Detected a Linux openSUSE machine" )
      set(DISTRO "SLES")
+     set(LIBEXECDIR "/usr/lib")
+  elseif( ${SYS_RELEASE} MATCHES "Debian GNU/Linux" OR ${SYS_RELEASE} MATCHES "Ubuntu")
+     message( STATUS "Detected a Linux Debian base machine" )
+     set(DISTRO "DEBIAN")
      set(LIBEXECDIR "/usr/lib")
   else( ${SYS_RELEASE} MATCHES "Red Hat" )
      message( STATUS "Detected an UNKNOWN Linux machine" )
@@ -547,6 +551,7 @@ if(USE_FSAL_GLUSTER)
   else(NOT GFAPI_FOUND)
     message(STATUS "GFAPI_INCLUDE_DIRS=${GFAPI_INCLUDE_DIRS}")
     message(STATUS "GFAPI_LIBRARY_DIRS=${GFAPI_LIBRARY_DIRS}")
+    message(STATUS "GFAPI_LIBDIR=${GFAPI_LIBDIR}")
     include_directories(${GFAPI_INCLUDE_DIRS})
     # missing directory not provided by current version of GlusterFS
     include_directories(${GFAPI_PREFIX}/include)
@@ -571,6 +576,13 @@ if(USE_FSAL_GLUSTER)
 	set(USE_FSAL_GLUSTER OFF)
 	message(STATUS "Could not find libacl, disabling GLUSTER fsal build")
     endif(HAVE_ACL_H)
+    check_library_exists(gfapi glfs_xreaddirplus_r ${GFAPI_LIBDIR} HAVE_XREADDIRPLUS)
+    if(HAVE_XREADDIRPLUS)
+        set(USE_GLUSTER_XREADDIRPLUS ON)
+    else()
+        set(USE_GLUSTER_XREADDIRPLUS OFF)
+        message(STATUS "Could not find glfs_xreaddirplus, switching to glfs_readdir_r")
+    endif(HAVE_XREADDIRPLUS)
   endif(USE_FSAL_GLUSTER)
 endif(USE_FSAL_GLUSTER)
 

@@ -172,6 +172,14 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 	    container_of(op_ctx->fsal_export, struct glusterfs_export, export);
 	struct glusterfs_handle *objhandle =
 	    container_of(dir_hdl, struct glusterfs_handle, handle);
+
+#ifdef USE_GLUSTER_XREADDIRPLUS
+	struct glfs_object *glhandle = NULL;
+	struct glfs_xreaddirp_stat *xstat = NULL;
+	uint32_t flags =
+		 (GFAPI_XREADDIRP_STAT | GFAPI_XREADDIRP_HANDLE);
+#endif
+
 #ifdef GLTIMING
 	struct timespec s_time, e_time;
 
@@ -205,42 +213,86 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 				  op_ctx->creds->caller_glen,
 				  op_ctx->creds->caller_garray);
 
+#ifndef USE_GLUSTER_XREADDIRPLUS
 		rc = glfs_readdir_r(glfd, &de, &pde);
+#else
+		rc = glfs_xreaddirplus_r(glfd, flags, &xstat, &de, &pde);
+#endif
 
 		SET_GLUSTER_CREDS(glfs_export, NULL, NULL, 0, NULL);
 
-		if (rc == 0 && pde != NULL) {
-			struct attrlist attrs;
-			enum fsal_dir_result cb_rc;
-
-			/* skip . and .. */
-			if ((strcmp(de.d_name, ".") == 0)
-			    || (strcmp(de.d_name, "..") == 0)) {
-				continue;
-			}
-			fsal_prepare_attrs(&attrs, attrmask);
-
-			status = lookup(dir_hdl, de.d_name, &obj, &attrs);
-			if (FSAL_IS_ERROR(status))
-				goto out;
-
-			cb_rc = cb(de.d_name, obj, &attrs,
-				   dir_state, glfs_telldir(glfd));
-
-			fsal_release_attrs(&attrs);
-
-			/* Read ahead not supported by this FSAL. */
-			if (cb_rc >= DIR_READAHEAD)
-				goto out;
-		} else if (rc == 0 && pde == NULL) {
-			*eof = true;
-		} else {
+		if (rc < 0) {
 			status = gluster2fsal_error(errno);
 			goto out;
 		}
+
+		if (rc == 0 && pde == NULL) {
+			*eof = true;
+			goto out;
+		}
+
+		struct attrlist attrs;
+		enum fsal_dir_result cb_rc;
+
+		/* skip . and .. */
+		if ((strcmp(de.d_name, ".") == 0)
+		    || (strcmp(de.d_name, "..") == 0)) {
+			continue;
+		}
+		fsal_prepare_attrs(&attrs, attrmask);
+
+#ifndef USE_GLUSTER_XREADDIRPLUS
+		status = lookup(dir_hdl, de.d_name, &obj, &attrs);
+		if (FSAL_IS_ERROR(status))
+			goto out;
+#else
+		struct glfs_object *tmp = NULL;
+		struct stat *sb;
+
+		if (!xstat || !(rc & GFAPI_XREADDIRP_HANDLE)) {
+			status = gluster2fsal_error(errno);
+			goto out;
+		}
+
+		sb = glfs_xreaddirplus_get_stat(xstat);
+		tmp = glfs_xreaddirplus_get_object(xstat);
+
+		if (!sb || !tmp) {
+			status = gluster2fsal_error(errno);
+			goto out;
+		}
+
+		glhandle = glfs_object_copy(tmp);
+		if (!glhandle) {
+			status = gluster2fsal_error(errno);
+			goto out;
+		}
+
+		status = glfs2fsal_handle(glfs_export, glhandle, &obj,
+					  sb, &attrs);
+		glfs_free(xstat);
+		xstat = NULL;
+
+		if (FSAL_IS_ERROR(status)) {
+			gluster_cleanup_vars(glhandle);
+			goto out;
+		}
+#endif
+		cb_rc = cb(de.d_name, obj, &attrs,
+			   dir_state, glfs_telldir(glfd));
+
+		fsal_release_attrs(&attrs);
+
+		/* Read ahead not supported by this FSAL. */
+		if (cb_rc >= DIR_READAHEAD)
+			goto out;
 	}
 
  out:
+#ifdef USE_GLUSTER_XREADDIRPLUS
+	if (xstat)
+		glfs_free(xstat);
+#endif
 	SET_GLUSTER_CREDS(glfs_export, &op_ctx->creds->caller_uid,
 			  &op_ctx->creds->caller_gid,
 			  op_ctx->creds->caller_glen,

@@ -396,9 +396,6 @@ void nfs4_BuildStateId_Other(nfs_client_id_t *clientid, char *other);
 #define STATEID_SPECIAL_ALL_0 2	/*< Allow anonymous */
 #define STATEID_SPECIAL_ALL_1 4	/*< Allow read-bypass */
 #define STATEID_SPECIAL_CURRENT 8	/*< Allow current */
-#define STATEID_SPECIAL_FREE 0x100	/*< Check for FREE_STATEID */
-#define STATEID_SPECIAL_FOR_FREE (STATEID_SPECIAL_CURRENT | \
-				  STATEID_SPECIAL_FREE)
 
 /* The following flag tells nfs4_Check_Stateid this is a close call
  * and to ignore stateid that have valid clientid portion, but the
@@ -533,7 +530,7 @@ state_owner_t *create_nfs4_owner(state_nfs4_owner_name_t *name,
 				 state_owner_type_t type,
 				 state_owner_t *related_owner,
 				 unsigned int init_seqid, bool_t *pisnew,
-				 care_t care);
+				 care_t care, bool_t confirm);
 
 int Init_nfs4_owner(void);
 
