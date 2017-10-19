@@ -89,6 +89,18 @@ struct gpfs_fsal_obj_handle *alloc_handle(struct gpfs_file_handle *fh,
 	return hdl;
 }
 
+static uint64_t get_handle2inode(struct gpfs_file_handle *gfh)
+{
+	struct f_handle {
+		char unused1[8];
+		uint64_t inode;  /* inode for file */
+		char unused2[8];
+		uint64_t pinode; /* inode for parent */
+	} *f_handle = (struct f_handle *)gfh->f_handle;
+
+	return f_handle->inode;
+}
+
 /* lookup
  * deprecated NULL parent && NULL path implies root handle
  */
@@ -132,6 +144,32 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 	status = GPFSFSAL_lookup(op_ctx, parent, path, &attrib, fh, &fs);
 	if (FSAL_IS_ERROR(status))
 		return status;
+
+	/* Sometimes GPFS sends us the same object as its parent with
+	 * lookup of DOTDOT. This is incorrect and also results in ABBA
+	 * deadlock with content_lock and attr_lock (readdirplus holds
+	 * content_lock on the directory and then attr_lock on the
+	 * direntry (which happens to be the same object for DOTDOT
+	 * direntry with this bug). Other requests hold attr_lock
+	 * followed by content_lock.
+	 *
+	 * If we detect this error, send DELAY error and hope it goes
+	 * away on the retry!
+	 */
+	if (strncmp(path, "..", 2) == 0) {
+		struct gpfs_file_handle *gfh;
+		unsigned long long inode, pinode;
+
+		gfh = container_of(parent, struct gpfs_fsal_obj_handle,
+				       obj_handle)->handle;
+		inode = get_handle2inode(gfh);
+		pinode = get_handle2inode(fh);
+		if (inode == pinode && inode > 9) {
+			LogCrit(COMPONENT_FSAL,
+				"DOTDOT error, inode: %llu", inode);
+			return fsalstat(ERR_FSAL_DELAY, 0);
+		}
+	}
 
 	/* allocate an obj_handle and fill it up */
 	hdl = alloc_handle(fh, fs, &attrib, NULL, op_ctx->fsal_export);
