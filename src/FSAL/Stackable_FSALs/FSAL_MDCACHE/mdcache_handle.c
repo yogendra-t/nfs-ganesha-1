@@ -134,7 +134,9 @@ fsal_status_t mdcache_alloc_and_check_handle(
 
 	if (new_entry->obj_handle.type == DIRECTORY) {
 		/* Insert Parent's key */
+		PTHREAD_RWLOCK_wrlock(&new_entry->content_lock);
 		mdc_dir_add_parent(new_entry, parent);
+		PTHREAD_RWLOCK_unlock(&new_entry->content_lock);
 	}
 
 	*new_obj = &new_entry->obj_handle;
@@ -1053,17 +1055,19 @@ unlock:
 	mdcache_src_dest_unlock(mdc_olddir, mdc_newdir);
 
 	/* Refresh, if necessary.  Must be done without lock held */
-	if (refresh)
-		mdcache_refresh_attrs_no_invalidate(mdc_newdir);
+	if (FSAL_IS_SUCCESS(status)) {
+		if (refresh)
+			mdcache_refresh_attrs_no_invalidate(mdc_newdir);
 
-	/* If we're moving a directory out, update parent hash */
-	if (mdc_olddir != mdc_newdir && obj_hdl->type == DIRECTORY) {
-		PTHREAD_RWLOCK_wrlock(&mdc_obj->content_lock);
+		/* If we're moving a directory out, update parent hash */
+		if (mdc_olddir != mdc_newdir && obj_hdl->type == DIRECTORY) {
+			PTHREAD_RWLOCK_wrlock(&mdc_obj->content_lock);
 
-		mdcache_free_fh(&mdc_obj->fsobj.fsdir.parent);
-		mdc_dir_add_parent(mdc_obj, mdc_newdir);
+			mdcache_free_fh(&mdc_obj->fsobj.fsdir.parent);
+			mdc_dir_add_parent(mdc_obj, mdc_newdir);
 
-		PTHREAD_RWLOCK_unlock(&mdc_obj->content_lock);
+			PTHREAD_RWLOCK_unlock(&mdc_obj->content_lock);
+		}
 	}
 
 	if (mdc_lookup_dst)
@@ -1432,8 +1436,11 @@ static fsal_status_t mdcache_unlink(struct fsal_obj_handle *dir_hdl,
 		atomic_clear_uint32_t_bits(&entry->mde_flags,
 					   MDCACHE_TRUST_ATTRS);
 
-		if (entry->obj_handle.type == DIRECTORY)
+		if (entry->obj_handle.type == DIRECTORY) {
+			PTHREAD_RWLOCK_wrlock(&entry->content_lock);
 			mdcache_free_fh(&entry->fsobj.fsdir.parent);
+			PTHREAD_RWLOCK_unlock(&entry->content_lock);
+		}
 
 		mdc_unreachable(entry);
 	}

@@ -372,6 +372,7 @@ again:
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
+/* entry's content_lock must be held in exclusive mode */
 fsal_status_t
 mdc_get_parent_handle(struct mdcache_fsal_export *export,
 		      mdcache_entry_t *entry,
@@ -380,6 +381,10 @@ mdc_get_parent_handle(struct mdcache_fsal_export *export,
 	char buf[NFS4_FHSIZE];
 	struct gsh_buffdesc fh_desc = { buf, NFS4_FHSIZE };
 	fsal_status_t status;
+
+#ifdef DEBUG_MDCACHE
+	assert(entry->content_lock.__data.__writer != 0);
+#endif
 
 	/* Get a wire handle that can be used with create_handle() */
 	subcall_raw(export,
@@ -421,7 +426,9 @@ mdc_get_parent(struct mdcache_fsal_export *export, mdcache_entry_t *entry)
 		return;
 	}
 
+	PTHREAD_RWLOCK_wrlock(&entry->content_lock);
 	mdc_get_parent_handle(export, entry, sub_handle);
+	PTHREAD_RWLOCK_unlock(&entry->content_lock);
 
 	/* Release parent handle */
 	subcall_raw(export,
@@ -1072,7 +1079,9 @@ fsal_status_t mdc_add_cache(mdcache_entry_t *mdc_parent,
 
 	if (!FSAL_IS_ERROR(status) && new_entry->obj_handle.type == DIRECTORY) {
 		/* Insert Parent's key */
+		PTHREAD_RWLOCK_wrlock(&new_entry->content_lock);
 		mdc_dir_add_parent(new_entry, mdc_parent);
+		PTHREAD_RWLOCK_unlock(&new_entry->content_lock);
 	}
 
 	mdcache_put(new_entry);
@@ -1189,16 +1198,37 @@ fsal_status_t mdc_lookup(mdcache_entry_t *mdc_parent, const char *name,
 
 	PTHREAD_RWLOCK_rdlock(&mdc_parent->content_lock);
 
+	/* ".." doesn't end up in the cache */
 	if (!strcmp(name, "..")) {
 		struct mdcache_fsal_export *export = mdc_cur_export();
+		struct gsh_buffdesc tmpfh;
 
 		LogFullDebug(COMPONENT_CACHE_INODE,
 			     "Lookup parent (..) of %p", mdc_parent);
-		/* ".." doesn't end up in the cache */
-		status =  mdcache_locate_host(
-				&mdc_parent->fsobj.fsdir.parent,
-				export, new_entry, attrs_out);
-		goto out;
+
+		if (mdc_parent->fsobj.fsdir.parent.len == 0) {
+			/* we need write lock */
+			PTHREAD_RWLOCK_unlock(&mdc_parent->content_lock);
+			PTHREAD_RWLOCK_wrlock(&mdc_parent->content_lock);
+			mdc_get_parent(export, mdc_parent);
+		}
+
+		/* We need to drop the content lock around the locate, as that
+		 * will try to take the attribute lock on the parent to refresh
+		 * it's attributes, which can cause an ABBA with lookup/readdir.
+		 * Copy the parent filehandle, so we can drop the lock.
+		 */
+		mdcache_copy_fh(&tmpfh, &mdc_parent->fsobj.fsdir.parent);
+		PTHREAD_RWLOCK_unlock(&mdc_parent->content_lock);
+
+		status =  mdcache_locate_host(&tmpfh, export, new_entry,
+					      attrs_out);
+
+		mdcache_free_fh(&tmpfh);
+
+		if (status.major == ERR_FSAL_STALE)
+			status.major = ERR_FSAL_NOENT;
+		return status;
 	}
 
 	if (test_mde_flags(mdc_parent, MDCACHE_BYPASS_DIRCACHE)) {
@@ -2450,7 +2480,9 @@ mdc_readdir_chunk_object(const char *name, struct fsal_obj_handle *sub_handle,
 
 	if (new_entry->obj_handle.type == DIRECTORY) {
 		/* Insert Parent's key */
+		PTHREAD_RWLOCK_wrlock(&new_entry->content_lock);
 		mdc_dir_add_parent(new_entry, mdc_parent);
+		PTHREAD_RWLOCK_unlock(&new_entry->content_lock);
 	}
 
 	LogFullDebug(COMPONENT_CACHE_INODE,

@@ -839,9 +839,6 @@ fsal_status_t fsal_create(struct fsal_obj_handle *parent,
 	} else {
 		/* For support_ex API, turn off owner and/or group attr
 		 * if they are the same as the credentials.
-		 *
-		 * Handle IRIX and AIX set-gid case here: commit
-		 * 6e1c01d117e70243b461133fc764a6dfea0ea8e3
 		 */
 		if ((attrs->valid_mask & ATTR_OWNER) &&
 		    attrs->owner == op_ctx->creds->caller_uid)
@@ -1628,6 +1625,12 @@ fsal_status_t fsal_rename(struct fsal_obj_handle *dir_src,
 	if (obj_is_junction(lookup_src)) {
 		LogCrit(COMPONENT_FSAL, "Attempt to rename export %s", oldname);
 		fsal_status = fsalstat(ERR_FSAL_NOTEMPTY, 0);
+		goto out;
+	}
+
+	/* Don't allow rename of an object as parent of itself */
+	if (dir_dest == lookup_src) {
+		fsal_status = fsalstat(ERR_FSAL_INVAL, 0);
 		goto out;
 	}
 
