@@ -280,3 +280,6 @@ pnfs_mds(book, default false)
 
 pnfs_ds(book, default false)
     Whether this a pNFS DS server.
+
+Minor_Versions(enum list, values [0, 1, 2], default [0, 1, 2])
+    List of supported NFSV4 minor version numbers.

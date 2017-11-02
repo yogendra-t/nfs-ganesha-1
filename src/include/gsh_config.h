@@ -434,6 +434,16 @@ typedef struct nfs_core_param {
  */
 #define DELEG_RECALL_RETRY_DELAY_DEFAULT 1
 
+/**
+ * @brief NFSv4 minor versions
+ */
+#define NFSV4_MINOR_VERSION_ZERO	(1 << 0)
+#define NFSV4_MINOR_VERSION_ONE	(1 << 1)
+#define NFSV4_MINOR_VERSION_TWO	(1 << 2)
+#define NFSV4_MINOR_VERSION_ALL	(NFSV4_MINOR_VERSION_ZERO | \
+					 NFSV4_MINOR_VERSION_ONE | \
+					 NFSV4_MINOR_VERSION_TWO)
+
 typedef struct nfs_version4_parameter {
 	/** Whether to disable the NFSv4 grace period.  Defaults to
 	    false and settable with Graceless. */
@@ -474,6 +484,8 @@ typedef struct nfs_version4_parameter {
 	bool pnfs_mds;
 	/** Whether this a pNFS DS server. Defaults to false */
 	bool pnfs_ds;
+	/** List of supported NFSV4 minor versions */
+	unsigned int minor_versions;
 } nfs_version4_parameter_t;
 
 /** @} */
