@@ -251,7 +251,7 @@ static struct config_item version4_params[] = {
 		       nfs_version4_parameter, pnfs_mds),
 	CONF_ITEM_BOOL("PNFS_DS", true,
 		       nfs_version4_parameter, pnfs_ds),
-	CONF_ITEM_LIST("minor_versions", NFSV4_MINOR_VERSION_ALL,
+	CONF_ITEM_LIST("minor_versions", NFSV4_MINOR_VERSION_ZERO,
 		       minor_versions, nfs_version4_parameter, minor_versions),
 	CONFIG_EOL
 };
