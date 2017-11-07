@@ -273,7 +273,7 @@ static struct config_item version4_params[] = {
 	CONF_ITEM_STR("RecoveryBackend", 1, MAXPATHLEN,
 		      RECOVERY_BACKEND_DEFAULT,
 		      nfs_version4_parameter, recovery_backend),
-	CONF_ITEM_LIST("minor_versions", NFSV4_MINOR_VERSION_ALL,
+	CONF_ITEM_LIST("minor_versions", NFSV4_MINOR_VERSION_ZERO,
 		       minor_versions, nfs_version4_parameter, minor_versions),
 	CONF_ITEM_UI32("slot_table_size", 1, 1024, NFS41_NB_SLOTS_DEF,
 		       nfs_version4_parameter, nb_slots),
