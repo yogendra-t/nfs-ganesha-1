@@ -512,6 +512,10 @@ nfsstat4 nfs4_Errno_verbose(cache_inode_status_t error, const char *where)
 	case CACHE_INODE_INSERT_ERROR:
 	case CACHE_INODE_LRU_ERROR:
 	case CACHE_INODE_HASH_SET_ERROR:
+	case CACHE_INODE_IO_ERROR:
+		LogCrit(COMPONENT_NFS_V4,
+			"Error %u in %s converted to NFS4ERR_IO but was set non-retryable",
+			error, where);
 		nfserror = NFS4ERR_IO;
 		break;
 
@@ -534,10 +538,6 @@ nfsstat4 nfs4_Errno_verbose(cache_inode_status_t error, const char *where)
 
 	case CACHE_INODE_READ_ONLY_FS:
 		nfserror = NFS4ERR_ROFS;
-		break;
-
-	case CACHE_INODE_IO_ERROR:
-		nfserror = NFS4ERR_IO;
 		break;
 
 	case CACHE_INODE_NAME_TOO_LONG:
