@@ -61,9 +61,9 @@ NFS_CORE_PARAM {}
 
 	Drop_Delay_Errors(bool, default false)
 
-	Dispatch_Max_Reqs(uint32, range 1 to 10000, default 5000)
+	Dispatch_Max_Reqs(uint32, range 1 to 300000, default 5000)
 
-	Dispatch_Max_Reqs_Xprt(uint32, range 1 to 10000, default 512)
+	Dispatch_Max_Reqs_Xprt(uint32, range 1 to 10000, default 5000)
 
 	DRC_Disabled(boo, default false)
 
@@ -173,7 +173,7 @@ NFSV4 {}
 
 	Lease_Lifetime(uint32, range 0 to 120, default 60)
 
-	Grace_Period(uint32, range 0 to 180, default 90)
+	Grace_Period(uint32, range 0 to 180, default 60)
 
 	DomainName(string, default "localdomain")
 
