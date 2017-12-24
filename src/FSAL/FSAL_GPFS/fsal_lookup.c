@@ -163,6 +163,8 @@ fsal_status_t GPFSFSAL_lookup(const struct req_op_context *p_context,
 		if (FSAL_IS_ERROR(status)) {
 			FSAL_CLEAR_MASK(p_object_attr->mask);
 			FSAL_SET_MASK(p_object_attr->mask, ATTR_RDATTR_ERR);
+			close(parent_fd);
+			return status;
 		}
 	}
 	close(parent_fd);
