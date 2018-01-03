@@ -422,10 +422,6 @@ fsal_status_t open2_by_name(struct fsal_obj_handle *in_obj,
 		return status;
 	}
 
-	if (!state) {
-		(void) atomic_inc_size_t(&open_fd_count);
-	}
-
 	LogFullDebug(COMPONENT_FSAL,
 		     "Created entry %p FSAL %s for %s",
 		     *obj, (*obj)->fsal->name, name);
@@ -1686,24 +1682,18 @@ fsal_status_t fsal_open(struct fsal_obj_handle *obj_hdl,
 	/* Make sure current state meet requirements */
 	if ((current_flags != FSAL_O_RDWR) && (current_flags != FSAL_O_CLOSED)
 	    && (current_flags != openflags)) {
-		bool closed;
 		/* Flags are insufficient; need to re-open */
 		if (op_ctx->fsal_export->exp_ops.fs_supports(
 			op_ctx->fsal_export, fso_reopen_method)) {
 			/* FSAL has re-open; use that */
 			status = obj_hdl->obj_ops.reopen(obj_hdl,
 							   openflags);
-			closed = false;
 		} else {
 			status = obj_hdl->obj_ops.close(obj_hdl);
-			closed = true;
 		}
 		if (FSAL_IS_ERROR(status)
 		    && (status.major != ERR_FSAL_NOT_OPENED))
 			return status;
-		if (!FSAL_IS_ERROR(status) && closed) {
-			(void) atomic_dec_size_t(&open_fd_count);
-		}
 
 		/* Potentially force re-openning */
 		current_flags = obj_hdl->obj_ops.status(obj_hdl);
@@ -1713,8 +1703,6 @@ fsal_status_t fsal_open(struct fsal_obj_handle *obj_hdl,
 		status = obj_hdl->obj_ops.open(obj_hdl, openflags);
 		if (FSAL_IS_ERROR(status))
 			return status;
-
-		(void) atomic_inc_size_t(&open_fd_count);
 
 		LogDebug(COMPONENT_FSAL,
 			 "obj %p: openflags = %d, open_fd_count = %zd",

@@ -44,7 +44,7 @@ set(GANESHA_PATCH_LEVEL .3)
 # Extra version is for naming development/RC.  It is blank in master/stable branches
 # so it can be available to end-users to name local variants/versions
 # If used, it is always of the form "-whateveryouwant"
-set(GANESHA_EXTRA_VERSION -ibm011.00)
+set(GANESHA_EXTRA_VERSION -ibm012.00)
 
 set(GANESHA_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL}${GANESHA_EXTRA_VERSION})
 set(GANESHA_BASE_VERSION ${GANESHA_MAJOR_VERSION}.${GANESHA_MINOR_VERSION}${GANESHA_PATCH_LEVEL})
@@ -712,7 +712,7 @@ if(_MSPAC_SUPPORT)
   if(WBCLIENT_FOUND AND WBCLIENT4_H)
     set(SYSTEM_LIBRARIES ${WBCLIENT_LIBRARIES} ${SYSTEM_LIBRARIES})
   else(WBCLIENT_FOUND AND WBCLIENT4_H)
-    message(WARNING "Samba 4 wbclient not found.  Disabling MSPAC_SUPPORT")
+    message(FATAL_ERROR "Samba 4 wbclient not found.  Disabling MSPAC_SUPPORT")
     set(_MSPAC_SUPPORT OFF)
   endif(WBCLIENT_FOUND AND WBCLIENT4_H)
 endif(_MSPAC_SUPPORT)

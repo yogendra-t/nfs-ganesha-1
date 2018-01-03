@@ -2572,7 +2572,6 @@ again:
 
 				/* Now close the already open descriptor. */
 				status = close_func(obj_hdl, my_fd);
-				(void) atomic_dec_size_t(&open_fd_count);
 
 				if (FSAL_IS_ERROR(status)) {
 					PTHREAD_RWLOCK_unlock(
@@ -2614,8 +2613,6 @@ again:
 				*has_lock = false;
 				return status;
 			}
-
-			(void) atomic_inc_size_t(&open_fd_count);
 		}
 
 		/* Ok, now we should be in the correct mode.
