@@ -111,43 +111,6 @@ static inline void add_detached_dirent(mdcache_entry_t *parent,
 }
 
 /**
- * @brief Fetch optional attributes
- *
- * The mask should be set in attrs_out indicating which attributes are
- * desired. If ATTR_RDATTR_ERR is set, and the attribute fetch fails,
- * the requested handle will still be returned, however the attributes
- * will not be set, otherwise, if the attributes are requested and the
- * getattrs fails, the lookup itself will fail.
- *
- * @param[in]     obj_hdl   Object to get attributes for.
- * @param[in,out] attrs_out Optional attributes for newly created object
- *
- * @return FSAL status.
- */
-fsal_status_t get_optional_attrs(struct fsal_obj_handle *obj_hdl,
-				 struct attrlist *attrs_out)
-{
-	fsal_status_t status;
-
-	if (attrs_out == NULL)
-		return fsalstat(ERR_FSAL_NO_ERROR, 0);
-
-	status = obj_hdl->obj_ops.getattrs(obj_hdl, attrs_out);
-
-	if (FSAL_IS_ERROR(status)) {
-		if (attrs_out->request_mask & ATTR_RDATTR_ERR) {
-			/* Indicate the failure of requesting attributes by
-			 * marking the ATTR_RDATTR_ERR in the mask.
-			 */
-			attrs_out->valid_mask = ATTR_RDATTR_ERR;
-			status = fsalstat(ERR_FSAL_NO_ERROR, 0);
-		} /* otherwise let the error stand. */
-	}
-
-	return status;
-}
-
-/**
  * Allocate and initialize a new mdcache handle.
  *
  * This function doesn't free the sub_handle if the allocation fails. It must
@@ -2369,13 +2332,17 @@ mdc_readdir_chunk_object(const char *name, struct fsal_obj_handle *sub_handle,
 		 * never actually see) the same.
 		 */
 		mdcache_put(new_entry);
-		/* Check for return code of -4. This indicates that its FSAL
-		 * cookie duplication / collision. This could happen due to
-		 * fast mutating directory. The already cached contents are
-		 * stale/invalid. Need to invalidate the cache and inform
-		 * client to re-read the directory.
+		/* Check for return code -3 and/or -4.
+		 * -3: This indicates the file name is duplicate but FSAL
+		 * cookie is different. This may happen in case lots of new
+		 * entries got added to the directory while running readdir.
+		 * -4: This indicates that it is FSAL cookie duplication /
+		 * collision. This could happen due to fast mutating directory.
+		 * In both cases already cached contents are stale/invalid.
+		 * Need to invalidate the cache and inform client to re-read
+		 * the directory.
 		 */
-		if (code == -4) {
+		if (code == -3 || code == -4) {
 			atomic_clear_uint32_t_bits(&state->dir->mde_flags,
 						   MDCACHE_TRUST_CONTENT);
 			state->status->major = ERR_FSAL_DELAY;
