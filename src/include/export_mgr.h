@@ -200,6 +200,7 @@ static inline void get_gsh_export_ref(struct gsh_export *a_export)
 	(void) atomic_inc_int64_t(&a_export->refcnt);
 }
 
+void export_cleanup(struct gsh_export *a_export);
 void export_revert(struct gsh_export *a_export);
 void export_add_to_mount_work(struct gsh_export *a_export);
 void export_add_to_unexport_work_locked(struct gsh_export *a_export);
