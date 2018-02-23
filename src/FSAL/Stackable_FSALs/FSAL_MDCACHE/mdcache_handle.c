@@ -1142,6 +1142,11 @@ fsal_status_t mdcache_refresh_attrs(mdcache_entry_t *entry, bool need_acl,
 			 */
 			attrs.acl = entry->attrs.acl;
 			attrs.valid_mask |= ATTR_ACL;
+			/* As we didn't received ACLs, most likely those were
+			 * not requested. Set the request_mask for ATTR_ACL,
+			 * so that fsal_copy_attrs function copies the ACLs
+			 */ 
+			entry->attrs.request_mask |= ATTR_ACL;
 		}
 
 		/* NOTE: Because we already had an ACL,
