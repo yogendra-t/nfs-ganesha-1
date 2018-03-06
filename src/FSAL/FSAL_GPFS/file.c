@@ -151,7 +151,7 @@ open_by_handle(struct fsal_obj_handle *obj_hdl, struct state_t *state,
 	fsal_status_t status;
 	const bool truncated = (posix_flags & O_TRUNC) != 0;
 	struct gpfs_fd *my_fd;
-	int fd;
+	int fd = -1;
 
 	/* This can block over an I/O operation. */
 	PTHREAD_RWLOCK_wrlock(&obj_hdl->obj_lock);
@@ -200,7 +200,7 @@ open_by_handle(struct fsal_obj_handle *obj_hdl, struct state_t *state,
 	 * one. There shouldn't be any old open for state based call.
 	 */
 	if (my_fd->openflags != FSAL_O_CLOSED) {
-		assert(my_fd->fd >= 0);
+		assert(my_fd->fd >= 3);
 		/* assert(state == NULL); */
 		(void)fsal_internal_close(my_fd->fd, NULL, 0);
 	}
@@ -538,7 +538,7 @@ gpfs_read_plus_fd(int my_fd, uint64_t offset,
 	if (!buffer || !read_amount || !end_of_file || !info)
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
-	assert(my_fd >= 0);
+	assert(my_fd >= 3);
 
 	rarg.mountdirfd = expfd;
 	rarg.fd = my_fd;
@@ -713,6 +713,7 @@ find_fd(int *fd, struct fsal_obj_handle *obj_hdl, bool bypass,
 				PTHREAD_RWLOCK_rdlock(&obj_hdl->obj_lock);
 			}
 			*fd = out_fd->fd;
+			assert(*fd >= 3);
 		}
 		return status;
 
@@ -742,6 +743,7 @@ find_fd(int *fd, struct fsal_obj_handle *obj_hdl, bool bypass,
 		     out_fd->fd, object_file_type_to_str(obj_hdl->type));
 
 	*fd = out_fd->fd;
+	assert(*fd >= 3);
 	*closefd = true;
 
 	return status;
@@ -933,7 +935,7 @@ gpfs_commit_fd(int my_fd, struct fsal_obj_handle *obj_hdl, off_t offset,
 	verifier4 writeverf = {0};
 	int retval;
 
-	assert(my_fd >= 0);
+	assert(my_fd >= 3);
 
 	arg.mountdirfd = my_fd;
 	arg.handle = myself->handle;
@@ -1182,7 +1184,7 @@ fsal_status_t gpfs_seek(struct fsal_obj_handle *obj_hdl, struct io_info *info)
 	struct gpfs_io_info io_info = {0};
 	struct fseek_arg arg = {0};
 
-	assert(myself->u.file.fd.fd >= 0 &&
+	assert(myself->u.file.fd.fd >= 3 &&
 	       myself->u.file.fd.openflags != FSAL_O_CLOSED);
 
 	arg.mountdirfd = myself->u.file.fd.fd;
@@ -1229,7 +1231,7 @@ gpfs_io_advise(struct fsal_obj_handle *obj_hdl, struct io_hints *hints)
 		container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 	struct fadvise_arg arg = {0};
 
-	assert(myself->u.file.fd.fd >= 0 &&
+	assert(myself->u.file.fd.fd >= 3 &&
 	       myself->u.file.fd.openflags != FSAL_O_CLOSED);
 
 	arg.mountdirfd = myself->u.file.fd.fd;
@@ -1326,7 +1328,7 @@ gpfs_close2(struct fsal_obj_handle *obj_hdl, struct state_t *state)
 
 		PTHREAD_RWLOCK_unlock(&obj_hdl->obj_lock);
 	}
-	if (my_fd->fd > 0) {
+	if (my_fd->fd >= 0) {
 		LogFullDebug(COMPONENT_FSAL,
 			     "state %p fd %d", state, my_fd->fd);
 		state_owner = state->state_owner;
