@@ -89,7 +89,7 @@ struct gpfs_fsal_obj_handle *alloc_handle(struct gpfs_file_handle *fh,
 	return hdl;
 }
 
-static uint64_t get_handle2inode(struct gpfs_file_handle *gfh)
+uint64_t get_handle2inode(struct gpfs_file_handle *gfh)
 {
 	struct f_handle {
 		char unused1[8];
