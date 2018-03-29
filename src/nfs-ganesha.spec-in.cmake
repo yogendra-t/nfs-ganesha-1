@@ -515,7 +515,7 @@ exit 0
 
 %files
 %defattr(-,root,root,-)
-%{_bindir}/ganesha.nfsd
+%{_bindir}/gpfs.ganesha.nfsd
 %if ! %{with system_ntirpc}
 %{_libdir}/libntirpc.so.@NTIRPC_VERSION_EMBED@
 %{_libdir}/libntirpc.so.1.5

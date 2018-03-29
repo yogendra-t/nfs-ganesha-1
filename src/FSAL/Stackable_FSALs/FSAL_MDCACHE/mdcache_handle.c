@@ -1096,6 +1096,7 @@ fsal_status_t mdcache_refresh_attrs(mdcache_entry_t *entry, bool need_acl,
 	struct attrlist attrs;
 	fsal_status_t status = {0, 0};
 	struct timespec oldmtime;
+	bool old_acl = false;
 
 	/* Use this to detect if we should invalidate a directory. */
 	oldmtime = entry->attrs.mtime;
@@ -1147,6 +1148,8 @@ fsal_status_t mdcache_refresh_attrs(mdcache_entry_t *entry, bool need_acl,
 			 * so that fsal_copy_attrs function copies the ACLs
 			 */ 
 			entry->attrs.request_mask |= ATTR_ACL;
+			/* Here we are carrying the old ACLs */
+			old_acl = true;
 		}
 
 		/* NOTE: Because we already had an ACL,
@@ -1177,6 +1180,14 @@ fsal_status_t mdcache_refresh_attrs(mdcache_entry_t *entry, bool need_acl,
 	 * release them anyway to make it easy to scan the code for correctness.
 	 */
 	fsal_release_attrs(&attrs);
+
+	if (old_acl) {
+		/* As we are carrying old ACLs, we should not update
+		 * acl_time. For that unset the ATTR_ACL bit from
+		 * request_mask
+		 */
+		entry->attrs.request_mask &= ~ATTR_ACL;
+	}
 
 	/* Note that we use &entry->attrs here in case attrs.request_mask was
 	 * modified by the FSAL. entry->attrs.request_mask reflects the
