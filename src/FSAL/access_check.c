@@ -431,8 +431,7 @@ static void fsal_print_access_by_acl(int naces, int ace_number,
  * @return ERR_FSAL_NO_ERROR, ERR_FSAL_ACCESS, or ERR_FSAL_NO_ACE
  */
 
-/* Removing "static", to satisfy compiler */
-fsal_status_t fsal_check_access_acl(struct user_cred *creds,
+static fsal_status_t fsal_check_access_acl(struct user_cred *creds,
 					   fsal_aceperm_t v4mask,
 					   fsal_accessflags_t *allowed,
 					   fsal_accessflags_t *denied,
@@ -840,20 +839,16 @@ fsal_status_t fsal_test_access(struct fsal_obj_handle *obj_hdl,
 		goto out;
 	}
 
-	/* This is ugly fix. As we may not have current ACLs, it is not
-	 * wise to check ACLs for access check. Hence avoiding the ACL
-	 * access check and going with fsal_check_access_no_acl
-	 */
-	/*if (IS_FSAL_ACE4_REQ(access_type) ||
+	if (IS_FSAL_ACE4_REQ(access_type) ||
 	    (attrs.acl != NULL && IS_FSAL_ACE4_MASK_VALID(access_type))) {
 		status = fsal_check_access_acl(op_ctx->creds,
 					       FSAL_ACE4_MASK(access_type),
 					       allowed, denied, &attrs);
-	} else {*/		/* fall back to use mode to check access. */
+	} else {		/* fall back to use mode to check access. */
 		status = fsal_check_access_no_acl(op_ctx->creds,
 						  FSAL_MODE_MASK(access_type),
 						  allowed, denied, &attrs);
-	/*}*/
+	}
 
  out:
 
