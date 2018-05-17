@@ -45,6 +45,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_convert.h"
 #include "nfs_proto_tools.h"
+#include "fsal.h"
 
 /**
  *
@@ -64,6 +65,7 @@
 int nfs3_getattr(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 {
 	cache_entry_t *entry = NULL;
+	cache_inode_status_t cache_status;
 	int rc = NFS_REQ_OK;
 
 	if (isDebug(COMPONENT_NFSPROTO)) {
@@ -88,12 +90,14 @@ int nfs3_getattr(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		goto out;
 	}
 
-	if (!cache_entry_to_nfs3_Fattr(
-		       entry,
-		       &res->res_getattr3.GETATTR3res_u.resok.obj_attributes)) {
-		res->res_getattr3.status =
-		    nfs3_Errno(CACHE_INODE_INVALID_ARGUMENT);
-
+	cache_status = cache_inode_lock_trust_attrs(entry, false);
+	if (cache_status == CACHE_INODE_SUCCESS) {
+		rc = nfs3_FSALattr_To_Fattr(op_ctx->export,
+			entry->obj_handle->attrs,
+			&res->res_getattr3.GETATTR3res_u.resok.obj_attributes);
+		PTHREAD_RWLOCK_unlock(&entry->attr_lock);
+	} else {
+		res->res_getattr3.status = nfs3_Errno(cache_status);
 		LogFullDebug(COMPONENT_NFSPROTO,
 			     "nfs_Getattr set failed status v3");
 
