@@ -1123,7 +1123,7 @@ fsal_status_t mdc_add_cache(mdcache_entry_t *mdc_parent,
 
 #ifdef USE_LTTNG
 	tracepoint(mdcache, mdc_readdir_populate,
-		   __func__, __LINE__, new_entry, new_entry->lru.refcnt);
+		   __func__, __LINE__, new_entry, new_entry->sub_handle);
 #endif
 	LogFullDebug(COMPONENT_CACHE_INODE,
 		     "Created entry %p FSAL %s for %s",
@@ -2765,6 +2765,10 @@ again:
 				whence);
 	}
 
+#ifdef USE_LTTNG
+	tracepoint(mdcache, mdc_readdir_populate,
+		   __func__, __LINE__, directory, directory->sub_handle);
+#endif
 	subcall(
 		readdir_status = directory->sub_handle->obj_ops.readdir(
 			directory->sub_handle, whence_ptr, &state,
@@ -2948,6 +2952,10 @@ fsal_status_t mdcache_readdir_chunked(mdcache_entry_t *directory,
 	bool eod = false;
 	bool reload_chunk = false;
 
+#ifdef USE_LTTNG
+	tracepoint(mdcache, mdc_readdir,
+		   __func__, __LINE__, directory);
+#endif
 	LogFullDebugAlt(COMPONENT_NFS_READDIR, COMPONENT_CACHE_INODE,
 			"Starting chunked READDIR for %p, MDCACHE_TRUST_CONTENT %s, MDCACHE_TRUST_DIR_CHUNKS %s",
 			directory,
@@ -3327,9 +3335,9 @@ again:
 		}
 
 #ifdef USE_LTTNG
-		tracepoint(mdcache, mdc_readdir_cb,
-			   __func__, __LINE__, dirent->name, &entry->obj_handle,
-			   entry->sub_handle, entry->lru.refcnt);
+	tracepoint(mdcache, mdc_readdir_cb,
+		   __func__, __LINE__, (const char*)dirent->name, entry,
+		   entry->sub_handle, entry->lru.refcnt);
 #endif
 		cb_result = cb(dirent->name, &entry->obj_handle, &entry->attrs,
 			       dir_state, dirent->ck);

@@ -1848,7 +1848,7 @@ _mdcache_lru_ref(mdcache_entry_t *entry, uint32_t flags, const char *func,
 
 #ifdef USE_LTTNG
 	tracepoint(mdcache, mdc_lru_ref,
-		   func, line, entry, refcnt);
+		   func, line, entry, entry->sub_handle, refcnt);
 #endif
 
 	/* adjust LRU on initial refs */
@@ -1930,7 +1930,7 @@ _mdcache_lru_unref(mdcache_entry_t *entry, uint32_t flags, const char *func,
 
 #ifdef USE_LTTNG
 	tracepoint(mdcache, mdc_lru_unref,
-		   func, line, entry, refcnt);
+		   func, line, entry, entry->sub_handle, refcnt);
 #endif
 
 	if (unlikely(refcnt == 0)) {
