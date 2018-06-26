@@ -144,7 +144,7 @@ static mdcache_entry_t *mdcache_alloc_handle(
 	mdcache_entry_t *result;
 	fsal_status_t status;
 
-	result = mdcache_lru_get();
+	result = mdcache_lru_get(sub_handle);
 
 	if (result == NULL) {
 		/* Should never happen, but our caller will handle... */
@@ -1123,7 +1123,7 @@ fsal_status_t mdc_add_cache(mdcache_entry_t *mdc_parent,
 
 #ifdef USE_LTTNG
 	tracepoint(mdcache, mdc_readdir_populate,
-		   __func__, __LINE__, new_entry, new_entry->sub_handle);
+		   __func__, __LINE__, new_entry, new_entry->sub_handle, 0);
 #endif
 	LogFullDebug(COMPONENT_CACHE_INODE,
 		     "Created entry %p FSAL %s for %s",
@@ -2767,7 +2767,8 @@ again:
 
 #ifdef USE_LTTNG
 	tracepoint(mdcache, mdc_readdir_populate,
-		   __func__, __LINE__, directory, directory->sub_handle);
+		   __func__, __LINE__, &directory->obj_handle,
+		   directory->sub_handle, whence);
 #endif
 	subcall(
 		readdir_status = directory->sub_handle->obj_ops.readdir(
