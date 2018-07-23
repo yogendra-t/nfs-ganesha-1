@@ -125,6 +125,11 @@ class RetrieveExportStats():
 	stats_state = self.exportmgrobj.get_dbus_method("StatusStats",
 				  self.dbus_exportstats_name)
 	return StatsStatus(stats_state())
+    # rpc
+    def rpc_stats(self):
+	stats_state = self.exportmgrobj.get_dbus_method("RPCStats",
+				  self.dbus_exportstats_name)
+	return StatsRPC(stats_state())
 
 class RetrieveClientStats():
     def __init__(self):
@@ -410,7 +415,34 @@ class StatsStatus():
 		output += "Stats counting for FSAL is enabled since: \n\t"
 		output += time.ctime(self.status[3][1][0]) + str(self.status[3][1][1]) + " nsecs"
 	    else:
-		 output += "Stats counting for FSAL is currently disabled"
+		 output += "Stats counting for FSAL is currently disabled \n"
+	    if self.status[4][0]:
+		output += "Stats counting for RPC is enabled since: \n\t"
+		output += time.ctime(self.status[4][1][0]) + str(self.status[4][1][1]) + " nsecs"
+	    else:
+		 output += "Stats counting for RPC is currently disabled"
+	    return output
+
+class StatsRPC():
+    def __init__(self, status):
+	self.status = status
+    def __str__(self):
+	output = ""
+	if not self.status[0]:
+	    return "Unable to fetch RPC stats - " + self.status[1]
+	else:
+	    output += "RPC Queue Statistics (4 Queues): "
+	    output += "\n Total Requests : " + " %s" % (str(self.status[2][0]).rjust(8))
+	    output += "\n Active Requests: " + " %s" % (str(self.status[2][1]).rjust(8))
+	    output += "\n QueueName  \t\tTotal   Active   Min Res Time Max Res Time (Milliseconds)"
+	    i = 0
+	    while i < 20:
+		output += "\n" + (self.status[2][i+2]).ljust(20)
+		output += " %s" % (str(self.status[2][i+3]).rjust(8))
+		output += " %s" % (str(self.status[2][i+4]).rjust(8))
+		output += "  %12.6f" % (self.status[2][i+5])
+		output += "  %12.6f" % (self.status[2][i+6])
+		i += 5
 	    return output
 
 class DumpFSALStats():

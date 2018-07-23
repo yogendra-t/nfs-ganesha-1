@@ -191,15 +191,27 @@ struct export_stats {
 	.direction = "out"   \
 }
 
-#define STATS_STATUS_REPLY	\
-{	\
-	.name = "nfs_status",	\
-	.type = "b(tt)",	\
-	.direction = "out"	\
-},	\
-{	\
-	.name = "fsal_status",	\
-	.type = "b(tt)",	\
+#define STATS_STATUS_REPLY      \
+{                               \
+	.name = "nfs_status",   \
+	.type = "b(tt)",        \
+	.direction = "out"      \
+},                              \
+{                               \
+	.name = "fsal_status",  \
+	.type = "b(tt)",        \
+	.direction = "out"      \
+},				\
+{                               \
+	.name = "rpc_status",  \
+	.type = "b(tt)",        \
+	.direction = "out"      \
+}
+
+#define STATS_RPC_REPLY		\
+{				\
+	.name = "rpc_stats",	\
+	.type = "uua(sttdd)",	\
 	.direction = "out"	\
 }
 

@@ -1377,6 +1377,9 @@ void nfs_rpc_queue_init(void)
 
 static uint32_t enqueued_reqs;
 static uint32_t dequeued_reqs;
+#ifdef USE_DBUS
+static uint64_t last_enqueued_reqs;
+#endif
 
 uint32_t get_enqueue_count(void)
 {
@@ -1443,6 +1446,12 @@ void nfs_rpc_enqueue_req(request_data_t *reqdata)
 	pthread_spin_unlock(&q->sp);
 
 	(void) atomic_inc_uint32_t(&enqueued_reqs);
+	if (nfs_param.core_param.enable_RPCSTATS) {
+		(void) atomic_inc_uint64_t(&qpair->total);
+#ifdef USE_DBUS
+		(void) atomic_inc_uint64_t(&last_enqueued_reqs);
+#endif
+	}
 
 #if defined(HAVE_BLKIN)
 	/* log the queue depth */
@@ -1565,6 +1574,8 @@ request_data_t *nfs_rpc_dequeue_req(nfs_worker_data_t *worker)
 	struct req_q_pair *qpair;
 	uint32_t ix, slot;
 	struct timespec timeout;
+	struct timespec deque_time;
+	nsecs_elapsed_t resp_time;
 
 	/* XXX: the following stands in for a more robust/flexible
 	 * weighting function */
@@ -1604,6 +1615,16 @@ request_data_t *nfs_rpc_dequeue_req(nfs_worker_data_t *worker)
 		reqdata = nfs_rpc_consume_req(qpair);
 		if (reqdata) {
 			(void) atomic_inc_uint32_t(&dequeued_reqs);
+			if (nfs_param.core_param.enable_RPCSTATS) {
+				now(&deque_time);
+				resp_time = timespec_diff(&reqdata->time_queued,
+							  &deque_time);
+				if (qpair->resp_time_max < resp_time)
+					qpair->resp_time_max = resp_time;
+				if (qpair->resp_time_min == 0 ||
+				    qpair->resp_time_min > resp_time)
+					qpair->resp_time_min = resp_time;
+			}
 			break;
 		}
 
@@ -2272,3 +2293,36 @@ static void *rpc_dispatcher_thread(void *arg)
 
 	return NULL;
 }				/* rpc_dispatcher_thread */
+
+#ifdef USE_DBUS
+/**
+ ** @brief Reset RPC Queue related statistics
+ **/
+void reset_rpcq_stats(void)
+{
+	int i;
+	uint64_t lval, last_reqs = 0;
+	struct req_q_pair *qpair;
+
+	/* Here the Q specific total count should be set to the current
+	 * active Q length. It should not be set to 0 */
+	for (i = 0; i < N_REQ_QUEUES; i++) {
+		qpair = &nfs_req_st.reqs.nfs_request_q.qset[i];
+		lval = atomic_fetch_uint32_t(&qpair->producer.size) +
+			atomic_fetch_uint32_t(&qpair->consumer.size);
+		last_reqs += lval;
+		(void)atomic_store_uint64_t(&qpair->total, lval);
+		(void)atomic_store_uint64_t(&qpair->resp_time_min, 0);
+		(void)atomic_store_uint64_t(&qpair->resp_time_max, 0);
+	}
+	(void)atomic_store_uint64_t(&last_enqueued_reqs, last_reqs);
+}
+
+/**
+ **   @brief Get the RPC queue total count
+ **/
+uint64_t get_total_rpcq_count(void)
+{
+	return last_enqueued_reqs;
+}
+#endif
