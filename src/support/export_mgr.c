@@ -1796,12 +1796,16 @@ static bool stats_reset(DBusMessageIter *args,
 	bool success = true;
 	char *errormsg = "OK";
 	DBusMessageIter iter;
+	struct timespec timestamp;
 
 	dbus_message_iter_init_append(reply, &iter);
 	dbus_status_reply(&iter, success, errormsg);
+	now(&timestamp);
+	dbus_append_timestamp(&iter, &timestamp);
 
 	reset_fsal_stats();
-	server_reset_stats(&iter);
+	reset_rpcq_stats();
+	reset_server_stats();
 
 	return true;
 }
@@ -1997,21 +2001,31 @@ static bool stats_disable(DBusMessageIter *args,
 			 "Disabling FSAL statistics counting");
 		LogEvent(COMPONENT_CONFIG,
 			 "Disabling RPC statistics counting");
+		/* reset all stats counters */
+		reset_fsal_stats();
+		reset_rpcq_stats();
+		reset_server_stats();
 	}
 	if (strcmp(stat_type, "nfs") == 0) {
 		nfs_param.core_param.enable_NFSSTATS = false;
 		LogEvent(COMPONENT_CONFIG,
 			 "Disabling NFS server statistics counting");
+		/* reset server stats counters */
+		reset_server_stats();
 	}
 	if (strcmp(stat_type, "fsal") == 0) {
 		nfs_param.core_param.enable_FSALSTATS = false;
 		LogEvent(COMPONENT_CONFIG,
 			 "Disabling FSAL statistics counting");
+		/* reset fsal stats counters */
+		reset_fsal_stats();
 	}
 	if (strcmp(stat_type, "rpc") == 0) {
 		nfs_param.core_param.enable_RPCSTATS = false;
 		LogEvent(COMPONENT_CONFIG,
 			 "Disabling RPC statistics counting");
+		/* reset rpc stats counters */
+		reset_rpcq_stats();
 	}
 
 	dbus_status_reply(&iter, success, errormsg);
