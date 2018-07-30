@@ -92,7 +92,7 @@ Requires: openSUSE-release
 
 %define sourcename @CPACK_SOURCE_PACKAGE_FILE_NAME@
 
-Name:		nfs-ganesha
+Name:		gpfs.nfs-ganesha
 Version:	@GANESHA_BASE_VERSION@
 Release:	%{dev_version}%{?dist}
 Summary:	NFS-Ganesha is a NFS Server running in user space
@@ -161,10 +161,14 @@ BuildRequires: python-sphinx
 Requires(post): psmisc
 Requires(pre): /usr/sbin/useradd
 
+Obsoletes: nfs-ganesha
+Provides:  nfs-ganesha = %{version}-%{release}
+Conflicts: nfs-ganesha
+
 # Use CMake variables
 
 %description
-nfs-ganesha : NFS-GANESHA is a NFS Server running in user space.
+gpfs.nfs-ganesha : NFS-GANESHA is a NFS Server running in user space.
 It comes with various back-end modules (called FSALs) provided as
  shared objects to support different file systems and name-spaces.
 
@@ -216,11 +220,14 @@ Requires:	PyQt4
 %endif
 %if ( 0%{?suse_version} )
 BuildRequires:  python-devel
-Requires: nfs-ganesha = %{version}-%{release}, python
+Requires: gpfs.nfs-ganesha = %{version}-%{release}, python
 %else
 BuildRequires:  python2-devel
-Requires: nfs-ganesha = %{version}-%{release}, python2
+Requires: gpfs.nfs-ganesha = %{version}-%{release}, python2
 %endif
+Obsoletes: nfs-ganesha-utils
+Provides:  nfs-ganesha-utils
+Conflicts: nfs-ganesha-utils
 
 %description utils
 This package contains utility scripts for managing the NFS-GANESHA server
@@ -270,7 +277,11 @@ is used for speed and latency testing.
 %package gpfs
 Summary: The NFS-GANESHA's GPFS FSAL
 Group: Applications/System
-Requires: nfs-ganesha = %{version}-%{release}
+Requires: gpfs.nfs-ganesha = %{version}-%{release}
+
+Obsoletes: nfs-ganesha-gpfs
+Provides:  nfs-ganesha-gpfs
+Conflicts: nfs-ganesha-gpfs
 
 %description gpfs
 This package contains a FSAL shared object to
