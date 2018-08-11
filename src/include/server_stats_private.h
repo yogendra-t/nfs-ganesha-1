@@ -174,11 +174,45 @@ struct export_stats {
 	.direction = "out"   \
 }
 
+/* We are passing back FSAL name so that ganesha_stats can show it as per
+ * the FSAL name
+ * The fsal_stats is an array with below items in it
+ * OP_NAME, NUMBER_OF_OP, AVG_RES_TIME, MIN_RES_TIME & MAX_RES_TIME
+ */
 #define FSAL_OPS_REPLY      \
+{                               \
+	.name = "fsal_name",         \
+	.type = "s",            \
+	.direction = "out"       \
+},				\
 {                            \
-	.name = "op",        \
-	.type = "(qa(sq(tdtt)))",     \
+	.name = "fsal_stats",        \
+	.type = "a(stddd)",     \
 	.direction = "out"   \
+}
+
+#define STATS_STATUS_REPLY      \
+{                               \
+	.name = "nfs_status",   \
+	.type = "b(tt)",        \
+	.direction = "out"      \
+},                              \
+{                               \
+	.name = "fsal_status",  \
+	.type = "b(tt)",        \
+	.direction = "out"      \
+},				\
+{                               \
+	.name = "rpc_status",  \
+	.type = "b(tt)",        \
+	.direction = "out"      \
+}
+
+#define STATS_RPC_REPLY		\
+{				\
+	.name = "rpc_stats",	\
+	.type = "uua(sttdd)",	\
+	.direction = "out"	\
 }
 
 #define LAYOUTS_REPLY		\
@@ -205,6 +239,13 @@ struct export_stats {
 {				\
 	.name = "layout_recall",\
 	.type = "(ttt)",	\
+	.direction = "out"	\
+}
+
+#define POOL_STATUS_REPLY	\
+{				\
+	.name = "pool_status",	\
+	.type = "a(sxt)",	\
 	.direction = "out"	\
 }
 
@@ -258,7 +299,8 @@ void server_dbus_total_ops(struct export_stats *export_st,
 void global_dbus_total_ops(DBusMessageIter *iter);
 void server_dbus_fast_ops(DBusMessageIter *iter);
 void mdcache_dbus_show(DBusMessageIter *iter);
-void server_reset_stats(DBusMessageIter *iter);
+void server_dbus_mem_pool(DBusMessageIter *iter);
+void reset_server_stats(void);
 void reset_export_stats(void);
 void reset_client_stats(void);
 void reset_gsh_stats(struct gsh_stats *st);

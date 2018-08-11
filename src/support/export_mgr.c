@@ -64,7 +64,11 @@
 #include "nfs_exports.h"
 #include "nfs_proto_functions.h"
 #include "pnfs_utils.h"
+#include "nfs_req_queue.h"
 
+struct timespec nfs_stats_time;
+struct timespec fsal_stats_time;
+struct timespec rpc_stats_time;
 /**
  * @brief Exports are stored in an AVL tree with front-end cache.
  *
@@ -1792,12 +1796,16 @@ static bool stats_reset(DBusMessageIter *args,
 	bool success = true;
 	char *errormsg = "OK";
 	DBusMessageIter iter;
+	struct timespec timestamp;
 
 	dbus_message_iter_init_append(reply, &iter);
 	dbus_status_reply(&iter, success, errormsg);
+	now(&timestamp);
+	dbus_append_timestamp(&iter, &timestamp);
 
 	reset_fsal_stats();
-	server_reset_stats(&iter);
+	reset_rpcq_stats();
+	reset_server_stats();
 
 	return true;
 }
@@ -1807,6 +1815,162 @@ static struct gsh_dbus_method reset_statistics = {
 	.method = stats_reset,
 	.args = {STATUS_REPLY,
 		 TIMESTAMP_REPLY,
+		 END_ARG_LIST}
+};
+
+/**
+ * DBUS method to get pool allocation numbers
+ */
+static bool stats_pool(DBusMessageIter *args,
+			DBusMessage *reply,
+			DBusError *error)
+{
+	bool success = true;
+	char *errormsg = "OK";
+	DBusMessageIter iter;
+
+	dbus_message_iter_init_append(reply, &iter);
+	dbus_status_reply(&iter, success, errormsg);
+	server_dbus_mem_pool(&iter);
+
+	return true;
+}
+
+static struct gsh_dbus_method pool_statistics = {
+	.name = "PoolStats",
+	.method = stats_pool,
+	.args = {STATUS_REPLY,
+		 TIMESTAMP_REPLY,
+		 POOL_STATUS_REPLY,
+		 END_ARG_LIST}
+};
+
+/**
+ * DBUS method to know current status of stats counting
+ */
+static bool stats_status(DBusMessageIter *args,
+			DBusMessage *reply,
+			DBusError *error)
+{
+	bool success = true;
+	char *errormsg = "OK";
+	DBusMessageIter iter, nfsstatus, fsalstatus, rpcstatus;
+	dbus_bool_t value;
+
+	dbus_message_iter_init_append(reply, &iter);
+	dbus_status_reply(&iter, success, errormsg);
+
+	/* Send info about NFS server stats */
+	dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL,
+					 &nfsstatus);
+	value = nfs_param.core_param.enable_NFSSTATS;
+	dbus_message_iter_append_basic(&nfsstatus, DBUS_TYPE_BOOLEAN, &value);
+	dbus_append_timestamp(&nfsstatus, &nfs_stats_time);
+	dbus_message_iter_close_container(&iter, &nfsstatus);
+
+	/* Send info about FSAL stats */
+	dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL,
+					 &fsalstatus);
+	value = nfs_param.core_param.enable_FSALSTATS;
+	dbus_message_iter_append_basic(&fsalstatus, DBUS_TYPE_BOOLEAN, &value);
+	dbus_append_timestamp(&fsalstatus, &fsal_stats_time);
+	dbus_message_iter_close_container(&iter, &fsalstatus);
+
+	/* Send info about RPC stats */
+	dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL,
+					 &rpcstatus);
+	value = nfs_param.core_param.enable_RPCSTATS;
+	dbus_message_iter_append_basic(&rpcstatus, DBUS_TYPE_BOOLEAN, &value);
+	dbus_append_timestamp(&rpcstatus, &rpc_stats_time);
+	dbus_message_iter_close_container(&iter, &rpcstatus);
+
+	return true;
+}
+
+static struct gsh_dbus_method status_stats = {
+	.name = "StatusStats",
+	.method = stats_status,
+	.args = {STATUS_REPLY,
+		 STATS_STATUS_REPLY,
+		 END_ARG_LIST}
+};
+
+/**
+ * DBUS method to collect RPC stats
+ */
+static bool stats_rpc(DBusMessageIter *args, DBusMessage *reply,
+		      DBusError *error)
+{
+	bool success = true;
+	char *errormsg = "OK";
+	DBusMessageIter iter, struct_iter;
+	int i;
+	uint32_t val;
+	uint64_t lval;
+	struct req_q_pair *qpair;
+	double res = 0.0;
+
+	dbus_message_iter_init_append(reply, &iter);
+	if (nfs_param.core_param.enable_RPCSTATS != true) {
+		success = false;
+		errormsg = "RPC stats disabled";
+		dbus_status_reply(&iter, success, errormsg);
+		return true;
+	}
+	dbus_status_reply(&iter, success, errormsg);
+
+	dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL,
+					 &struct_iter);
+	val = get_total_rpcq_count();
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT32,
+					&val);
+	val = nfs_rpc_outstanding_reqs_est();
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT32,
+					&val);
+	for (i = 0; i < N_REQ_QUEUES; i++) {
+		switch (i) {
+		case 0:
+			errormsg = "REQ_Q_MOUNT";
+			break;
+		case 1:
+			errormsg = "REQ_Q_CALL";
+			break;
+		case 2:
+			errormsg = "REQ_Q_LOW_LATENCY";
+			break;
+		case 3:
+			errormsg = "REQ_Q_HIGH_LATENCY";
+			break;
+		}
+		dbus_message_iter_append_basic(&struct_iter,
+					DBUS_TYPE_STRING, &errormsg);
+		qpair = &nfs_req_st.reqs.nfs_request_q.qset[i];
+		lval = atomic_fetch_uint64_t(&qpair->total);
+		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+						&lval);
+		lval = atomic_fetch_uint32_t(&qpair->producer.size) +
+			atomic_fetch_uint32_t(&qpair->consumer.size);
+		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+						&lval);
+		lval = atomic_fetch_uint64_t(&qpair->resp_time_min);
+		res = (double) lval * 0.000001;
+		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_DOUBLE,
+						&res);
+		lval = atomic_fetch_uint64_t(&qpair->resp_time_max);
+		res = (double) lval * 0.000001;
+		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_DOUBLE,
+						&res);
+	}
+	dbus_message_iter_close_container(&iter, &struct_iter);
+
+	return true;
+}
+
+static struct gsh_dbus_method RPC_stats = {
+	.name = "RPCStats",
+	.method = stats_rpc,
+	.args = {STATUS_REPLY,
+		 STATS_RPC_REPLY,
 		 END_ARG_LIST}
 };
 
@@ -1830,11 +1994,39 @@ static bool stats_disable(DBusMessageIter *args,
 	if (strcmp(stat_type, "all") == 0) {
 		nfs_param.core_param.enable_NFSSTATS = false;
 		nfs_param.core_param.enable_FSALSTATS = false;
+		nfs_param.core_param.enable_RPCSTATS = false;
+		LogEvent(COMPONENT_CONFIG,
+			 "Disabling NFS server statistics counting");
+		LogEvent(COMPONENT_CONFIG,
+			 "Disabling FSAL statistics counting");
+		LogEvent(COMPONENT_CONFIG,
+			 "Disabling RPC statistics counting");
+		/* reset all stats counters */
+		reset_fsal_stats();
+		reset_rpcq_stats();
+		reset_server_stats();
 	}
-	if (strcmp(stat_type, "nfs") == 0)
+	if (strcmp(stat_type, "nfs") == 0) {
 		nfs_param.core_param.enable_NFSSTATS = false;
-	if (strcmp(stat_type, "fsal") == 0)
+		LogEvent(COMPONENT_CONFIG,
+			 "Disabling NFS server statistics counting");
+		/* reset server stats counters */
+		reset_server_stats();
+	}
+	if (strcmp(stat_type, "fsal") == 0) {
 		nfs_param.core_param.enable_FSALSTATS = false;
+		LogEvent(COMPONENT_CONFIG,
+			 "Disabling FSAL statistics counting");
+		/* reset fsal stats counters */
+		reset_fsal_stats();
+	}
+	if (strcmp(stat_type, "rpc") == 0) {
+		nfs_param.core_param.enable_RPCSTATS = false;
+		LogEvent(COMPONENT_CONFIG,
+			 "Disabling RPC statistics counting");
+		/* reset rpc stats counters */
+		reset_rpcq_stats();
+	}
 
 	dbus_status_reply(&iter, success, errormsg);
 	now(&timestamp);
@@ -1869,13 +2061,46 @@ static bool stats_enable(DBusMessageIter *args,
 
 	dbus_message_iter_get_basic(args, &stat_type);
 	if (strcmp(stat_type, "all") == 0) {
-		nfs_param.core_param.enable_NFSSTATS = true;
-		nfs_param.core_param.enable_FSALSTATS = true;
+		if (!nfs_param.core_param.enable_NFSSTATS) {
+			nfs_param.core_param.enable_NFSSTATS = true;
+			LogEvent(COMPONENT_CONFIG,
+				 "Enabling NFS server statistics counting");
+			now(&nfs_stats_time);
+		}
+		if (!nfs_param.core_param.enable_FSALSTATS) {
+			nfs_param.core_param.enable_FSALSTATS = true;
+			LogEvent(COMPONENT_CONFIG,
+				 "Enabling FSAL statistics counting");
+			now(&fsal_stats_time);
+		}
+		if (!nfs_param.core_param.enable_RPCSTATS) {
+			nfs_param.core_param.enable_RPCSTATS = true;
+			LogEvent(COMPONENT_CONFIG,
+				 "Enabling RPC statistics counting");
+			now(&rpc_stats_time);
+		}
 	}
-	if (strcmp(stat_type, "nfs") == 0)
+	if (strcmp(stat_type, "nfs") == 0 &&
+			!nfs_param.core_param.enable_NFSSTATS) {
 		nfs_param.core_param.enable_NFSSTATS = true;
-	if (strcmp(stat_type, "fsal") == 0)
+		LogEvent(COMPONENT_CONFIG,
+			 "Enabling NFS server statistics counting");
+		now(&nfs_stats_time);
+	}
+	if (strcmp(stat_type, "fsal") == 0 &&
+			!nfs_param.core_param.enable_FSALSTATS) {
 		nfs_param.core_param.enable_FSALSTATS = true;
+		LogEvent(COMPONENT_CONFIG,
+			 "Enabling FSAL statistics counting");
+		now(&fsal_stats_time);
+	}
+	if (strcmp(stat_type, "rpc") == 0 &&
+			!nfs_param.core_param.enable_RPCSTATS) {
+		nfs_param.core_param.enable_RPCSTATS = true;
+		LogEvent(COMPONENT_CONFIG,
+			 "Enabling RPC statistics counting");
+		now(&rpc_stats_time);
+	}
 
 	dbus_status_reply(&iter, success, errormsg);
 	now(&timestamp);
@@ -1927,12 +2152,22 @@ static bool stats_fsal(DBusMessageIter *args,
 		errormsg = "FSAL do not support stats counting";
 		dbus_status_reply(&iter, success, errormsg);
 	} else {
+		if (nfs_param.core_param.enable_FSALSTATS != true) {
+			success = false;
+			errormsg = "FSAL stats disabled";
+			dbus_status_reply(&iter, success, errormsg);
+			return true;
+		}
 		dbus_status_reply(&iter, success, errormsg);
 		fsal_hdl->m_ops.fsal_extract_stats(fsal_hdl, &iter);
 	}
 	return true;
 }
 
+/* Note that just after enabling FSAL stats, we may not have any
+ * stats to return, hence added another message to deal with such
+ * situations.
+ */
 static struct gsh_dbus_method fsal_statistics = {
 	.name = "GetFSALStats",
 	.method = stats_fsal,
@@ -1940,6 +2175,7 @@ static struct gsh_dbus_method fsal_statistics = {
 		 STATUS_REPLY,
 		 TIMESTAMP_REPLY,
 		 FSAL_OPS_REPLY,
+		 MESSAGE_REPLY,
 		 END_ARG_LIST}
 };
 
@@ -2146,9 +2382,12 @@ static struct gsh_dbus_method *export_stats_methods[] = {
 	&cache_inode_show,
 	&export_show_all_io,
 	&reset_statistics,
+	&pool_statistics,
 	&fsal_statistics,
 	&enable_statistics,
 	&disable_statistics,
+	&status_stats,
+	&RPC_stats,
 	NULL
 };
 

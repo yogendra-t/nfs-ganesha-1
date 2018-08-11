@@ -161,9 +161,8 @@ BuildRequires: python-sphinx
 Requires(post): psmisc
 Requires(pre): /usr/sbin/useradd
 
-Obsoletes: nfs-ganesha
+Obsoletes: nfs-ganesha <= 2.5.3-ibm022.00
 Provides:  nfs-ganesha = %{version}-%{release}
-Conflicts: nfs-ganesha
 
 # Use CMake variables
 
@@ -225,9 +224,8 @@ Requires: gpfs.nfs-ganesha = %{version}-%{release}, python
 BuildRequires:  python2-devel
 Requires: gpfs.nfs-ganesha = %{version}-%{release}, python2
 %endif
-Obsoletes: nfs-ganesha-utils
+Obsoletes: nfs-ganesha-utils <= 2.5.3-ibm022.00
 Provides:  nfs-ganesha-utils
-Conflicts: nfs-ganesha-utils
 
 %description utils
 This package contains utility scripts for managing the NFS-GANESHA server
@@ -279,9 +277,8 @@ Summary: The NFS-GANESHA's GPFS FSAL
 Group: Applications/System
 Requires: gpfs.nfs-ganesha = %{version}-%{release}
 
-Obsoletes: nfs-ganesha-gpfs
+Obsoletes: nfs-ganesha-gpfs <= 2.5.3-ibm022.00
 Provides:  nfs-ganesha-gpfs
-Conflicts: nfs-ganesha-gpfs
 
 %description gpfs
 This package contains a FSAL shared object to
