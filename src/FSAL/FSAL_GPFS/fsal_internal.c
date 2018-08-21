@@ -70,6 +70,9 @@ fsal_status_t fsal_internal_close(int fd, void *owner, int cflags)
 {
 	struct close_file_arg carg;
 
+	/* fd should not be less than 3 */
+	assert(fd >= 3);
+
 	carg.mountdirfd = fd;
 	carg.close_fd = fd;
 	carg.close_flags = cflags;
@@ -113,6 +116,9 @@ fsal_internal_handle2fd(int dirfd, struct gpfs_file_handle *gpfs_fh,
 
 	*fd = rc;
 	(void)atomic_inc_size_t(&open_fd_count);
+
+	/* Make sure the fd is not less than 3 */
+	assert(*fd >= 3);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

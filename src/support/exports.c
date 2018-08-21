@@ -944,7 +944,7 @@ static void *export_init(void *link_mem, void *self_struct)
 			pnfs_ds_remove(export->export_id, true);
 		} else {
 			assert(export->refcnt == 0);
-			free_export(export);
+			export_cleanup(export);
 		}
 
 		return NULL;
@@ -2389,6 +2389,7 @@ void unexport(struct gsh_export *export)
 {
 	bool op_ctx_set = false;
 	struct root_op_context ctx;
+
 	/* Make the export unreachable */
 	LogDebug(COMPONENT_EXPORT,
 		 "Unexport %s, Pseduo %s",

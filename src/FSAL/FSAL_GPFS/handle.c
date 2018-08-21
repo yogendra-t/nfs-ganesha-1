@@ -597,7 +597,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 
 	*eof = true;
  done:
-	close(dirfd);
+	fsal_internal_close(dirfd, NULL, 0);
 
 	return fsalstat(fsal_error, retval);
 }
@@ -971,8 +971,7 @@ static void release(struct fsal_obj_handle *obj_hdl)
 	if (type == REGULAR_FILE) {
 		PTHREAD_RWLOCK_wrlock(&obj_hdl->obj_lock);
 
-		if (myself->u.file.fd.fd >= 0 &&
-		    myself->u.file.fd.openflags != FSAL_O_CLOSED) {
+		if (myself->u.file.fd.openflags != FSAL_O_CLOSED) {
 			fsal_internal_close(myself->u.file.fd.fd, NULL, 0);
 			myself->u.file.fd.fd = -1;
 			myself->u.file.fd.openflags = FSAL_O_CLOSED;
