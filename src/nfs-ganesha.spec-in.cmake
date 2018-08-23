@@ -200,7 +200,7 @@ BuildRequires: python-sphinx
 Requires(post): psmisc
 Requires(pre): /usr/sbin/useradd
 
-Obsoletes: nfs-ganesha <= 2.5.3-ibm022.00
+Obsoletes: nfs-ganesha < 2.5.3-ibm023.00
 Provides:  nfs-ganesha = %{version}-%{release}
 
 # Use CMake variables
@@ -267,7 +267,7 @@ BuildRequires:	PyQt4-devel
 Requires:	PyQt4
 %endif
 %endif
-Obsoletes: nfs-ganesha-utils <= 2.5.3-ibm022.00
+Obsoletes: nfs-ganesha-utils < 2.5.3-ibm023.00
 Provides:  nfs-ganesha-utils
 
 %description utils
@@ -333,7 +333,7 @@ Summary: The NFS-GANESHA GPFS FSAL
 Group: Applications/System
 Requires: gpfs.nfs-ganesha = %{version}-%{release}
 
-Obsoletes: nfs-ganesha-gpfs <= 2.5.3-ibm022.00
+Obsoletes: nfs-ganesha-gpfs < 2.5.3-ibm023.00
 Provides:  nfs-ganesha-gpfs
 
 %description gpfs
