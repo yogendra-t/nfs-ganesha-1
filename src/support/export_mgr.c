@@ -1948,6 +1948,7 @@ static bool stats_rpc(DBusMessageIter *args, DBusMessage *reply,
 	uint64_t lval;
 	struct req_q_pair *qpair;
 	double res = 0.0;
+	extern void dump_nfsv3_stats(void);
 
 	dbus_message_iter_init_append(reply, &iter);
 	if (nfs_param.core_param.enable_RPCSTATS != true) {
@@ -1956,6 +1957,10 @@ static bool stats_rpc(DBusMessageIter *args, DBusMessage *reply,
 		dbus_status_reply(&iter, success, errormsg);
 		return true;
 	}
+
+	/* HACK to log NFSv3 stats here */
+	dump_nfsv3_stats();
+
 	dbus_status_reply(&iter, success, errormsg);
 
 	dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL,
