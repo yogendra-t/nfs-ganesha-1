@@ -2304,6 +2304,7 @@ void reset_rpcq_stats(void)
 	uint64_t lval, last_reqs = 0;
 	struct req_q_pair *qpair;
 	extern void RESET_nfsv3_stats(void);
+	extern void reset_sendq_stats(void);
 
 	/* Here the Q specific total count should be set to the current
 	 * active Q length. It should not be set to 0 */
@@ -2318,6 +2319,7 @@ void reset_rpcq_stats(void)
 	}
 	(void)atomic_store_uint64_t(&last_enqueued_reqs, last_reqs);
 	RESET_nfsv3_stats();
+	reset_sendq_stats();
 }
 
 /**
