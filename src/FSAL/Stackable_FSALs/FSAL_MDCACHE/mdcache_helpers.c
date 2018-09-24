@@ -195,8 +195,6 @@ static mdcache_entry_t *mdcache_alloc_handle(
 		return NULL;
 	}
 
-	mdcache_lru_insert(result);
-
 	return result;
 }
 
@@ -729,6 +727,7 @@ mdcache_new_entry(struct mdcache_fsal_export *export,
 	} else {
 		LogDebug(COMPONENT_CACHE_INODE, "New entry %p added", nentry);
 	}
+	mdcache_lru_insert(nentry);
 	*entry = nentry;
 	(void)atomic_inc_uint64_t(&cache_stp->inode_added);
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
