@@ -1185,6 +1185,11 @@ void server_stats_9p_done(u8 opc, struct _9p_request_data *req9p)
 }
 #endif
 
+static void record_nfsv3_stats(struct svc_req *req,
+			       nsecs_elapsed_t request_time,
+			       nsecs_elapsed_t qwait_time,
+			       bool success, bool dup);
+
 /**
  * @brief record NFS op finished
  *
@@ -1216,6 +1221,8 @@ void server_stats_nfs_done(request_data_t *reqdata, int rc, bool dup)
 
 	now(&current_time);
 	stop_time = timespec_diff(&ServerBootTime, &current_time);
+	record_nfsv3_stats(req, stop_time - op_ctx->start_time,
+		    op_ctx->queue_wait, rc == NFS_REQ_OK, dup);
 	if (client != NULL) {
 		struct server_stats *server_st;
 
@@ -2160,6 +2167,84 @@ void server_stats_free(struct gsh_stats *statsp)
 		statsp->_9p = NULL;
 	}
 #endif
+}
+
+struct proto_op nfsv3_stats[NFSPROC3_COMMIT+1];
+static void record_nfsv3_stats(struct svc_req *req,
+			       nsecs_elapsed_t request_time,
+			       nsecs_elapsed_t qwait_time,
+			       bool success, bool dup)
+{
+	uint32_t prog = req->rq_msg.cb_prog;
+	uint32_t vers = req->rq_msg.cb_vers;
+	uint32_t proc = req->rq_msg.cb_proc;
+
+	if (prog == NFS_program[P_NFS] && vers == NFS_V3) {
+		if (proc > NFSPROC3_COMMIT) {
+			LogCrit(COMPONENT_DBUS,
+				"req->rq_proc is more than COMMIT: %d\n",
+				proc);
+			return;
+		}
+		record_op(&nfsv3_stats[proc], request_time, qwait_time,
+			  success, dup);
+	}
+}
+
+void RESET_nfsv3_stats(void)
+{
+	int op;
+
+	for (op = 1; op < NFSPROC3_COMMIT+1; op++) {
+		nfsv3_stats[op].total = 0;
+		nfsv3_stats[op].errors = 0;
+		nfsv3_stats[op].dups = 0;
+		nfsv3_stats[op].latency.latency = 0;
+		nfsv3_stats[op].latency.min = 0;
+		nfsv3_stats[op].latency.max = 0;
+		nfsv3_stats[op].queue_latency.latency = 0;
+		nfsv3_stats[op].queue_latency.min = 0;
+		nfsv3_stats[op].queue_latency.max = 0;
+	}
+}
+
+void dump_nfsv3_stats(void)
+{
+	FILE *fp;
+	int op;
+	time_t t = time(NULL);
+	struct tm tm = *localtime(&t);
+	char datetime[30];
+
+	fp = fopen("/tmp/ganesha-nfs3-stats.txt", "a");
+	if (fp == NULL)
+		return;
+
+	snprintf(datetime, sizeof(datetime),
+			"%04d-%02d-%02dT%02d-%02d-%02d",
+			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+			tm.tm_hour, tm.tm_min, tm.tm_sec);
+	fprintf(fp, "Stats extracted at %s, times are in ms\n", datetime);
+	fprintf(fp, "%-15s\ttotal\terrors\tdups\tlatency-avg\tlatency-min"
+			"\tlatency-max\tqwait-avg\tqwait-min\tqwait-max\n",
+			"op_name");
+	for (op = 1; op < NFSPROC3_COMMIT+1; op++) {
+		if (nfsv3_stats[op].total)
+			fprintf(fp,
+				"%-15s\t%lu\t%lu\t%lu"
+				"\t%f\t%f\t%f\t%f\t%f\t%f\n",
+				optabv3[op].name, nfsv3_stats[op].total,
+				nfsv3_stats[op].errors, nfsv3_stats[op].dups,
+				(float)nfsv3_stats[op].latency.latency /
+					nfsv3_stats[op].total/NS_PER_MSEC,
+				(float)nfsv3_stats[op].latency.min/NS_PER_MSEC,
+				(float)nfsv3_stats[op].latency.max/NS_PER_MSEC,
+				(float)nfsv3_stats[op].queue_latency.latency /
+					nfsv3_stats[op].total/NS_PER_MSEC,
+				(float)nfsv3_stats[op].queue_latency.min/NS_PER_MSEC,
+				(float)nfsv3_stats[op].queue_latency.max/NS_PER_MSEC);
+	}
+	fclose(fp);
 }
 
 /** @} */
