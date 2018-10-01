@@ -150,10 +150,19 @@ static mdcache_entry_t *mdcache_alloc_handle(
 	/* mdcache handlers */
 	mdcache_handle_ops_init(&result->obj_handle.obj_ops);
 	/* state */
-	if (sub_handle->type == DIRECTORY)
+	if (sub_handle->type == DIRECTORY) {
 		result->obj_handle.state_hdl = &result->fsobj.fsdir.dhdl;
-	else
+		/* init avl tree */
+		mdcache_avl_init(result);
+
+		/* init chunk list and detached dirents list */
+		glist_init(&result->fsobj.fsdir.chunks);
+		glist_init(&result->fsobj.fsdir.detached);
+		(void) pthread_spin_init(&result->fsobj.fsdir.spin,
+					 PTHREAD_PROCESS_PRIVATE);
+	} else {
 		result->obj_handle.state_hdl = &result->fsobj.hdl;
+	}
 	state_hdl_init(result->obj_handle.state_hdl, result->obj_handle.type,
 		       &result->obj_handle);
 
@@ -185,8 +194,6 @@ static mdcache_entry_t *mdcache_alloc_handle(
 		mdcache_put(result);
 		return NULL;
 	}
-
-	mdcache_lru_insert(result);
 
 	return result;
 }
@@ -646,14 +653,6 @@ mdcache_new_entry(struct mdcache_fsal_export *export,
 						   MDCACHE_DIR_POPULATED);
 		}
 
-		/* init avl tree */
-		mdcache_avl_init(nentry);
-
-		/* init chunk list and detached dirents list */
-		glist_init(&nentry->fsobj.fsdir.chunks);
-		glist_init(&nentry->fsobj.fsdir.detached);
-		(void) pthread_spin_init(&nentry->fsobj.fsdir.spin,
-					 PTHREAD_PROCESS_PRIVATE);
 		break;
 
 	case SYMBOLIC_LINK:
@@ -728,6 +727,7 @@ mdcache_new_entry(struct mdcache_fsal_export *export,
 	} else {
 		LogDebug(COMPONENT_CACHE_INODE, "New entry %p added", nentry);
 	}
+	mdcache_lru_insert(nentry);
 	*entry = nentry;
 	(void)atomic_inc_uint64_t(&cache_stp->inode_added);
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
