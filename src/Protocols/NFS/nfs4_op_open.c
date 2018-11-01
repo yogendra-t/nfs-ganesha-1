@@ -1488,6 +1488,9 @@ static void open4_ex(OPEN4args *arg,
 		old_openflags =
 			file_obj->obj_ops.status2(file_obj, *file_state);
 
+		/* Unset FSAL_O_TRUNC flag */
+		old_openflags &= ~FSAL_O_TRUNC;
+
 		/* Open upgrade */
 		LogFullDebug(COMPONENT_STATE, "Calling reopen2");
 
