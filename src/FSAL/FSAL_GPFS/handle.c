@@ -73,7 +73,19 @@ static struct gpfs_fsal_obj_handle *alloc_handle(struct gpfs_file_handle *fh,
 	hdl->handle = (struct gpfs_file_handle *)&hdl[1];
 	hdl->obj_handle.attrs = &hdl->attributes;
 	hdl->obj_handle.fs = fs;
-	memcpy(hdl->handle, fh, sizeof(struct gpfs_file_handle));
+
+	/* Some callers preserve the parent inode in the file handle
+	 * while others don't. We generally end up with multiple NFS
+	 * file handles referring to the same file/directory because of
+	 * this. Although NFS RFCs allow this behavior but Linux NFS
+	 * client can't handle it and it might be an issue with other
+	 * NFS clients as well.
+	 *
+	 * Let us zero out the parent inode from the NFS file handle.
+	 * We just copy the handle_key_size here as the rest is already
+	 * initialized to zeros.
+	 */
+	memcpy(hdl->handle, fh, fh->handle_key_size);
 	hdl->obj_handle.type = attributes->type;
 	if (hdl->obj_handle.type == REGULAR_FILE) {
 		hdl->u.file.fd = -1;	/* no open on this yet */
@@ -925,7 +937,7 @@ fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
 	int retval = 0;
 	fsal_status_t status;
 	struct gpfs_fsal_obj_handle *hdl;
-	struct gpfs_file_handle *fh;
+	struct gpfs_file_handle gfh;
 	struct attrlist attrib;
 	char *link_content = NULL;
 	ssize_t retlink = PATH_MAX - 1;
@@ -939,10 +951,31 @@ fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
 	if ((hdl_desc->len > (sizeof(struct gpfs_file_handle))))
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
-	fh = alloca(hdl_desc->len);
-	memcpy(fh, hdl_desc->addr, hdl_desc->len); /* struct aligned copy */
+	/* GPFS file handle can be divided into 3 parts:
+	 * 1. Header; 2. object inode; 3. parent inode
+	 *
+	 * We only use the Header and the object inode for hashing as we
+	 * would like to find the same object even if is moved to a
+	 * different parent directory. The length encapsulating this
+	 * header and the object inode is stored in handle_key_size.
+	 * The total length is stored in handle_size field.
+	 *
+	 * Callers of this function usually call extract handle before
+	 * calling this, so the hdl_desc->len field will be truncated to
+	 * handle_key_size. We zero out the parent inode part here.
+	 *
+	 * We could fix the callers to pass the correct hdl_desc->len
+	 * (as it is done in Ganesha2.5), but it would still lead to
+	 * multiple file handles representing the same object if a
+	 * client were to make up the parent inode information! Since
+	 * GPFS can't really verify the parent information, it would be
+	 * simpler to make sure that the parent inode is always zero'ed
+	 * in the nfs file handle we pass to NFS clients.
+	 */
+	memset(&gfh, 0, sizeof(gfh));
+	memcpy(&gfh, hdl_desc->addr, hdl_desc->len); /* struct aligned copy */
 
-	gpfs_extract_fsid(fh, &fsid_type, &fsid);
+	gpfs_extract_fsid(&gfh, &fsid_type, &fsid);
 
 	fs = lookup_fsid(&fsid, fsid_type);
 
@@ -965,13 +998,13 @@ fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
 	gpfs_fs = fs->private;
 
 	attrib.mask = exp_hdl->exp_ops.fs_supported_attrs(exp_hdl);
-	status = GPFSFSAL_getattrs(exp_hdl, gpfs_fs, op_ctx, fh, &attrib);
+	status = GPFSFSAL_getattrs(exp_hdl, gpfs_fs, op_ctx, &gfh, &attrib);
 	if (FSAL_IS_ERROR(status))
 		return status;
 
 	if (attrib.type == SYMBOLIC_LINK) {	/* I could lazy eval this... */
 
-		status = fsal_readlink_by_handle(gpfs_fs->root_fd, fh,
+		status = fsal_readlink_by_handle(gpfs_fs->root_fd, &gfh,
 						 link_buff, &retlink);
 		if (FSAL_IS_ERROR(status))
 			return status;
@@ -986,7 +1019,7 @@ fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
 		link_buff[retlink] = '\0';
 		link_content = link_buff;
 	}
-	hdl = alloc_handle(fh, fs, &attrib, link_content, exp_hdl);
+	hdl = alloc_handle(&gfh, fs, &attrib, link_content, exp_hdl);
 	if (hdl == NULL) {
 		fsal_error = ERR_FSAL_NOMEM;
 		goto errout;
