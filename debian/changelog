@@ -1,8 +1,8 @@
-nfs-ganesha (2.3.2-ibm60) xenial; urgency=medium
+nfs-ganesha (2.3.2-ibm61) xenial; urgency=medium
 
-  * nfs-ganesha 2.3.2-ibm60
+  * nfs-ganesha 2.3.2-ibm61
 
- -- Malahal Naineni <mnaineni@in.ibm.com>  Tue, 06 Nov 2018 17:17:10 +0530
+ -- Malahal Naineni <mnaineni@in.ibm.com>  Wed, 07 Nov 2018 17:17:10 +0530
 
 nfs-ganesha (2.3.2-ibm48.00) xenial; urgency=medium
 
