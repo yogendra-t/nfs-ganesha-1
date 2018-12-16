@@ -69,6 +69,7 @@
 struct timespec nfs_stats_time;
 struct timespec fsal_stats_time;
 struct timespec rpc_stats_time;
+struct timespec v3_full_stats_time;
 /**
  * @brief Exports are stored in an AVL tree with front-end cache.
  *
@@ -1885,6 +1886,39 @@ static struct gsh_dbus_method pool_statistics = {
 };
 
 /**
+ * DBUS method to get NFSv3 Detailed stats
+ */
+static bool stats_v3_full(DBusMessageIter *args,
+			DBusMessage *reply,
+			DBusError *error)
+{
+	bool success = true;
+	char *errormsg = "OK";
+	DBusMessageIter iter;
+
+	dbus_message_iter_init_append(reply, &iter);
+	if (!nfs_param.core_param.enable_FULLV3STATS) {
+		success = false;
+		errormsg = "v3_full stats disabled";
+		dbus_status_reply(&iter, success, errormsg);
+		return true;
+	}
+	dbus_status_reply(&iter, success, errormsg);
+	server_dbus_v3_full_stats(&iter);
+
+	return true;
+}
+
+static struct gsh_dbus_method v3_full_statistics = {
+	.name = "GetFULLV3Stats",
+	.method = stats_v3_full,
+	.args = {STATUS_REPLY,
+		 TIMESTAMP_REPLY,
+		 V3_FULL_REPLY,
+		 MESSAGE_REPLY,
+		 END_ARG_LIST}
+};
+/**
  * DBUS method to know current status of stats counting
  */
 static bool stats_status(DBusMessageIter *args,
@@ -1893,7 +1927,7 @@ static bool stats_status(DBusMessageIter *args,
 {
 	bool success = true;
 	char *errormsg = "OK";
-	DBusMessageIter iter, nfsstatus, fsalstatus, rpcstatus;
+	DBusMessageIter iter, nfsstatus, fsalstatus, rpcstatus, v3_full_status;
 	dbus_bool_t value;
 
 	dbus_message_iter_init_append(reply, &iter);
@@ -1923,6 +1957,15 @@ static bool stats_status(DBusMessageIter *args,
 	dbus_append_timestamp(&rpcstatus, &rpc_stats_time);
 	dbus_message_iter_close_container(&iter, &rpcstatus);
 
+	/* Send info about NFSv3 Detailed stats */
+	dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL,
+					 &v3_full_status);
+	value = nfs_param.core_param.enable_FULLV3STATS;
+	dbus_message_iter_append_basic(&v3_full_status, DBUS_TYPE_BOOLEAN,
+					&value);
+	dbus_append_timestamp(&v3_full_status, &v3_full_stats_time);
+	dbus_message_iter_close_container(&iter, &v3_full_status);
+
 	return true;
 }
 
@@ -1948,7 +1991,6 @@ static bool stats_rpc(DBusMessageIter *args, DBusMessage *reply,
 	uint64_t lval;
 	struct req_q_pair *qpair;
 	double res = 0.0;
-	extern void dump_nfsv3_stats(void);
 	extern void dump_sendq_stats(void);
 
 	dbus_message_iter_init_append(reply, &iter);
@@ -1959,8 +2001,6 @@ static bool stats_rpc(DBusMessageIter *args, DBusMessage *reply,
 		return true;
 	}
 
-	/* HACK to log NFSv3 stats here */
-	dump_nfsv3_stats();
 	dump_sendq_stats();
 
 	dbus_status_reply(&iter, success, errormsg);
@@ -2041,6 +2081,7 @@ static bool stats_disable(DBusMessageIter *args,
 		nfs_param.core_param.enable_NFSSTATS = false;
 		nfs_param.core_param.enable_FSALSTATS = false;
 		nfs_param.core_param.enable_RPCSTATS = false;
+		nfs_param.core_param.enable_FULLV3STATS = false;
 		LogEvent(COMPONENT_CONFIG,
 			 "Disabling NFS server statistics counting");
 		LogEvent(COMPONENT_CONFIG,
@@ -2050,10 +2091,12 @@ static bool stats_disable(DBusMessageIter *args,
 		/* reset all stats counters */
 		reset_fsal_stats();
 		reset_rpcq_stats();
+		/* resetting server stats include v3_full stats as well */
 		reset_server_stats();
 	}
 	if (strcmp(stat_type, "nfs") == 0) {
 		nfs_param.core_param.enable_NFSSTATS = false;
+		nfs_param.core_param.enable_FULLV3STATS = false;
 		LogEvent(COMPONENT_CONFIG,
 			 "Disabling NFS server statistics counting");
 		/* reset server stats counters */
@@ -2072,6 +2115,13 @@ static bool stats_disable(DBusMessageIter *args,
 			 "Disabling RPC statistics counting");
 		/* reset rpc stats counters */
 		reset_rpcq_stats();
+	}
+	if (strcmp(stat_type, "v3_full") == 0) {
+		nfs_param.core_param.enable_FULLV3STATS = false;
+		LogEvent(COMPONENT_CONFIG,
+			 "Disabling NFSv3 Detailed statistics counting");
+		/* reset v3_full stats counters */
+		reset_v3_full_stats();
 	}
 
 	dbus_status_reply(&iter, success, errormsg);
@@ -2125,6 +2175,12 @@ static bool stats_enable(DBusMessageIter *args,
 				 "Enabling RPC statistics counting");
 			now(&rpc_stats_time);
 		}
+		if (!nfs_param.core_param.enable_FULLV3STATS) {
+			nfs_param.core_param.enable_FULLV3STATS = true;
+			LogEvent(COMPONENT_CONFIG,
+				 "Enabling NFSv3 Detailed statistics counting");
+			now(&v3_full_stats_time);
+		}
 	}
 	if (strcmp(stat_type, "nfs") == 0 &&
 			!nfs_param.core_param.enable_NFSSTATS) {
@@ -2146,6 +2202,18 @@ static bool stats_enable(DBusMessageIter *args,
 		LogEvent(COMPONENT_CONFIG,
 			 "Enabling RPC statistics counting");
 		now(&rpc_stats_time);
+	}
+	if (strcmp(stat_type, "v3_full") == 0 &&
+			!nfs_param.core_param.enable_FULLV3STATS) {
+		if (!nfs_param.core_param.enable_NFSSTATS) {
+			errormsg = "First enable NFS stats counting";
+			success = false;
+		} else {
+			nfs_param.core_param.enable_FULLV3STATS = true;
+			LogEvent(COMPONENT_CONFIG,
+			 "Enabling NFSv3 Detailed statistics counting");
+			now(&v3_full_stats_time);
+		}
 	}
 
 	dbus_status_reply(&iter, success, errormsg);
@@ -2434,6 +2502,7 @@ static struct gsh_dbus_method *export_stats_methods[] = {
 	&disable_statistics,
 	&status_stats,
 	&RPC_stats,
+	&v3_full_statistics,
 	NULL
 };
 
