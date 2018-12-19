@@ -20,12 +20,12 @@ def usage():
     message += "%s [list_clients | deleg <ip address> | " % (sys.argv[0])
     message += "inode | iov3 [export id] | iov4 [export id] | export |"
     message += " total [export id] | fast | pnfs [export id] |"
-    message += " fsal <fsal name> | v3_full | rpc] \n"
+    message += " fsal <fsal name> | v3_full | v4_full | rpc] \n"
     message += "To reset stat counters use \n"
     message += "%s reset \n" % (sys.argv[0])
     message += "To enable/disable stat counters use \n"
     message += "%s [enable | disable] [all | nfs | fsal | " % (sys.argv[0])
-    message += "v3_full | rpc] \n"
+    message += "v3_full | v4_full | rpc] \n"
     message += "To get the current memory pool allocation\n"
     message += "%s pool" % (sys.argv[0])
     sys.exit(message)
@@ -38,7 +38,7 @@ else:
 # check arguments
 commands = ('help', 'list_clients', 'deleg', 'global', 'inode', 'iov3', 'iov4',
 	    'export', 'total', 'fast', 'pnfs', 'fsal', 'rpc', 'reset', 'enable',
-	    'disable', 'status', 'pool', 'v3_full')
+	    'disable', 'status', 'pool', 'v3_full', 'v4_full')
 if command not in commands:
     print "Option \"%s\" is not correct." % (command)
     usage()
@@ -66,11 +66,11 @@ elif command in ('fsal'):
     command_arg = sys.argv[2]
 elif command in ('enable', 'disable'):
     if not len(sys.argv) == 3:
-	print "Option \"%s\" must be followed by all/nfs/fsal/v3_full/rpc." % (command)
+	print "Option \"%s\" must be followed by all/nfs/fsal/v3_full/v4_full/rpc." % (command)
 	usage()
     command_arg = sys.argv[2]
-    if command_arg not in ('all', 'nfs', 'fsal', 'v3_full', 'rpc'):
-	print "Option \"%s\" must be followed by all/nfs/fsal/v3_full/rpc." % (command)
+    if command_arg not in ('all', 'nfs', 'fsal', 'v3_full', 'v4_full', 'rpc'):
+	print "Option \"%s\" must be followed by all/nfs/fsal/v3_full/v4_full/rpc." % (command)
 	usage()
 
 # retrieve and print stats
@@ -102,6 +102,8 @@ elif command == "fsal":
     print exp_interface.fsal_stats(command_arg)
 elif command == "v3_full":
     print exp_interface.v3_full_stats()
+elif command == "v4_full":
+    print exp_interface.v4_full_stats()
 elif command == "enable":
     print exp_interface.enable_stats(command_arg)
 elif command == "disable":
