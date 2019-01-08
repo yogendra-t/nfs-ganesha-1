@@ -452,18 +452,23 @@ class StatsRPC():
 	if not self.status[0]:
 	    return "Unable to fetch RPC stats - " + self.status[1]
 	else:
-	    output += "RPC Queue Statistics (4 Queues): "
-	    output += "\n Total Requests : " + " %s" % (str(self.status[2][0]).rjust(8))
-	    output += "\n Active Requests: " + " %s" % (str(self.status[2][1]).rjust(8))
-	    output += "\n QueueName  \t\tTotal   Active   Min Res Time Max Res Time (Milliseconds)"
+	    output += ("Timestamp: " + time.ctime(self.status[2][0]) + str(self.status[2][1]) + " nsecs\n")
+	    output += "\nRPC Receive Queue Statistics (4 Queues): "
+	    output += "\n\tPending Requests   : " + " %s" % (str(self.status[3][1]).rjust(8))
+	    output += "\n\tCompleted Requests : " + " %s" % (str(self.status[3][0]).rjust(8))
+	    output += "\n QueueName\t     Pending  Complete      Avg wait      Max wait  (Milliseconds)"
 	    i = 0
 	    while i < 20:
-		output += "\n" + (self.status[2][i+2]).ljust(20)
-		output += " %s" % (str(self.status[2][i+3]).rjust(8))
-		output += " %s" % (str(self.status[2][i+4]).rjust(8))
-		output += "  %12.6f" % (self.status[2][i+5])
-		output += "  %12.6f" % (self.status[2][i+6])
+		output += "\n" + (self.status[3][i+2]).ljust(20)
+		output += "%s " % (str(self.status[3][i+3]).rjust(8))
+		output += " %s" % (str(self.status[3][i+4]).rjust(8))
+		output += "  %12.6f" % (self.status[3][i+5])
+		output += "  %12.6f" % (self.status[3][i+6])
 		i += 5
+	    output += "\n\n\nRPC Send Queue Status (Milliseconds):"
+	    output += "\n\tRPCs sent - %s" % (str(self.status[4][0]).rjust(16))
+	    output += "\n\tAvg wait time - %12.6f" % (self.status[4][1])
+	    output += "\n\tMax wait time - %12.6f" % (self.status[4][2])
 	    return output
 
 class DumpFSALStats():

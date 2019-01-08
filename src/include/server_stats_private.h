@@ -220,8 +220,13 @@ struct export_stats {
 
 #define STATS_RPC_REPLY		\
 {				\
-	.name = "rpc_stats",	\
+	.name = "rq_stats",	\
 	.type = "uua(sttdd)",	\
+	.direction = "out"	\
+},				\
+{				\
+	.name = "sq_stats",	\
+	.type = "tdd",		\
 	.direction = "out"	\
 }
 

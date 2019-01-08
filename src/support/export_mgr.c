@@ -2031,13 +2031,14 @@ static bool stats_rpc(DBusMessageIter *args, DBusMessage *reply,
 {
 	bool success = true;
 	char *errormsg = "OK";
-	DBusMessageIter iter, struct_iter;
+	DBusMessageIter iter, rq_iter, sq_iter;
 	int i;
 	uint32_t val;
-	uint64_t lval;
+	uint64_t lval, q_count, q_wait, q_max;
 	struct req_q_pair *qpair;
 	double res = 0.0;
-	extern void dump_sendq_stats(void);
+	struct timespec timestamp;
+	/*extern void get_sendq_stats(uint64_t *, uint64_t *, uint64_t *);*/
 
 	dbus_message_iter_init_append(reply, &iter);
 	if (nfs_param.core_param.enable_RPCSTATS != true) {
@@ -2047,17 +2048,18 @@ static bool stats_rpc(DBusMessageIter *args, DBusMessage *reply,
 		return true;
 	}
 
-	dump_sendq_stats();
-
 	dbus_status_reply(&iter, success, errormsg);
+	now(&timestamp);
+	dbus_append_timestamp(&iter, &timestamp);
 
+	/* Receive Queue Stats */
 	dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL,
-					 &struct_iter);
+					 &rq_iter);
 	val = get_total_rpcq_count();
-	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT32,
+	dbus_message_iter_append_basic(&rq_iter, DBUS_TYPE_UINT32,
 					&val);
 	val = nfs_rpc_outstanding_reqs_est();
-	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT32,
+	dbus_message_iter_append_basic(&rq_iter, DBUS_TYPE_UINT32,
 					&val);
 	for (i = 0; i < N_REQ_QUEUES; i++) {
 		switch (i) {
@@ -2074,26 +2076,51 @@ static bool stats_rpc(DBusMessageIter *args, DBusMessage *reply,
 			errormsg = "REQ_Q_HIGH_LATENCY";
 			break;
 		}
-		dbus_message_iter_append_basic(&struct_iter,
+		dbus_message_iter_append_basic(&rq_iter,
 					DBUS_TYPE_STRING, &errormsg);
 		qpair = &nfs_req_st.reqs.nfs_request_q.qset[i];
-		lval = atomic_fetch_uint64_t(&qpair->total);
-		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
-						&lval);
 		lval = atomic_fetch_uint32_t(&qpair->producer.size) +
 			atomic_fetch_uint32_t(&qpair->consumer.size);
-		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+		dbus_message_iter_append_basic(&rq_iter, DBUS_TYPE_UINT64,
 						&lval);
-		lval = atomic_fetch_uint64_t(&qpair->resp_time_min);
-		res = (double) lval * 0.000001;
-		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_DOUBLE,
+		q_count = atomic_fetch_uint64_t(&qpair->total);
+		dbus_message_iter_append_basic(&rq_iter, DBUS_TYPE_UINT64,
+						&q_count);
+		q_wait = atomic_fetch_uint64_t(&qpair->resp_time);
+		if (q_count)
+			res = (double) (q_wait/q_count) * 0.000001;
+		else
+			res = 0.0;
+		dbus_message_iter_append_basic(&rq_iter, DBUS_TYPE_DOUBLE,
 						&res);
-		lval = atomic_fetch_uint64_t(&qpair->resp_time_max);
-		res = (double) lval * 0.000001;
-		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_DOUBLE,
+		q_max = atomic_fetch_uint64_t(&qpair->resp_time_max);
+		res = (double) q_max * 0.000001;
+		dbus_message_iter_append_basic(&rq_iter, DBUS_TYPE_DOUBLE,
 						&res);
 	}
-	dbus_message_iter_close_container(&iter, &struct_iter);
+	dbus_message_iter_close_container(&iter, &rq_iter);
+
+	/* Send Queue stats */
+	get_sendq_stats(&q_count, &q_wait, &q_max);
+	dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL,
+					 &sq_iter);
+	dbus_message_iter_append_basic(&sq_iter, DBUS_TYPE_UINT64,
+						&q_count);
+	if (q_count) {
+		res = (double) (q_wait/q_count) * 0.000001;
+		dbus_message_iter_append_basic(&sq_iter, DBUS_TYPE_DOUBLE,
+						&res);
+		res = (double) q_max * 0.000001;
+		dbus_message_iter_append_basic(&sq_iter, DBUS_TYPE_DOUBLE,
+						&res);
+	} else {
+		res = 0.0;
+		dbus_message_iter_append_basic(&sq_iter, DBUS_TYPE_DOUBLE,
+						&res);
+		dbus_message_iter_append_basic(&sq_iter, DBUS_TYPE_DOUBLE,
+						&res);
+	}
+	dbus_message_iter_close_container(&iter, &sq_iter);
 
 	return true;
 }
@@ -2102,6 +2129,7 @@ static struct gsh_dbus_method RPC_stats = {
 	.name = "RPCStats",
 	.method = stats_rpc,
 	.args = {STATUS_REPLY,
+		 TIMESTAMP_REPLY,
 		 STATS_RPC_REPLY,
 		 END_ARG_LIST}
 };
@@ -2129,6 +2157,7 @@ static bool stats_disable(DBusMessageIter *args,
 		nfs_param.core_param.enable_RPCSTATS = false;
 		nfs_param.core_param.enable_FULLV3STATS = false;
 		nfs_param.core_param.enable_FULLV4STATS = false;
+		disable_sendq_stats();
 		LogEvent(COMPONENT_CONFIG,
 			 "Disabling NFS server statistics counting");
 		LogEvent(COMPONENT_CONFIG,
@@ -2159,6 +2188,7 @@ static bool stats_disable(DBusMessageIter *args,
 	}
 	if (strcmp(stat_type, "rpc") == 0) {
 		nfs_param.core_param.enable_RPCSTATS = false;
+		disable_sendq_stats();
 		LogEvent(COMPONENT_CONFIG,
 			 "Disabling RPC statistics counting");
 		/* reset rpc stats counters */
@@ -2226,6 +2256,7 @@ static bool stats_enable(DBusMessageIter *args,
 		}
 		if (!nfs_param.core_param.enable_RPCSTATS) {
 			nfs_param.core_param.enable_RPCSTATS = true;
+			enable_sendq_stats();
 			LogEvent(COMPONENT_CONFIG,
 				 "Enabling RPC statistics counting");
 			now(&rpc_stats_time);
@@ -2260,6 +2291,7 @@ static bool stats_enable(DBusMessageIter *args,
 	if (strcmp(stat_type, "rpc") == 0 &&
 			!nfs_param.core_param.enable_RPCSTATS) {
 		nfs_param.core_param.enable_RPCSTATS = true;
+		enable_sendq_stats();
 		LogEvent(COMPONENT_CONFIG,
 			 "Enabling RPC statistics counting");
 		now(&rpc_stats_time);

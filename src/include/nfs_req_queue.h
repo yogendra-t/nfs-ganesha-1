@@ -54,7 +54,7 @@ struct req_q_pair {
 	struct req_q consumer;	/* to executor */
 	GSH_CACHE_PAD(2);
 	uint64_t total;		/* cumulative */
-	uint64_t resp_time_min;	/* Min response time */
+	uint64_t resp_time;	/* cumulative response time */
 	uint64_t resp_time_max;	/* Max response time */
 };
 
