@@ -71,6 +71,16 @@ Plugins_Dir(path, default "/usr/lib64/ganesha")
 Enable_Fast_Stats(bool, default false)
     Whether to use fast stats.
 
+Enable_FULLV3_Stats(bool, default false)
+    Whether to count and collect "detailed statistics" for NFSv3.
+    Enable_FULLV3_Stats can be enabled or disabled dynamically via
+    ganesha_stats.
+
+Enable_FULLV4_Stats(bool, default false)
+    Whether to count and collect "detailed statistics" for NFSv4.
+    Enable_FULLV4_Stats can be enabled or disabled dynamically via
+    ganesha_stats.
+
 Short_File_Handle(bool, default false)
     Whether to use short NFS file handle to accommodate VMware NFS client.
     Enable this if you have a VMware NFSv3 client. VMware NFSv3 client has a max

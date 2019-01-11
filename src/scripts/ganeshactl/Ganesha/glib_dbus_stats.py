@@ -130,6 +130,16 @@ class RetrieveExportStats():
 	stats_state = self.exportmgrobj.get_dbus_method("RPCStats",
 				  self.dbus_exportstats_name)
 	return StatsRPC(stats_state())
+    # v3_full
+    def v3_full_stats(self):
+	stats_state = self.exportmgrobj.get_dbus_method("GetFULLV3Stats",
+				  self.dbus_exportstats_name)
+	return DumpFULLV3Stats(stats_state())
+    # v4_full
+    def v4_full_stats(self):
+	stats_state = self.exportmgrobj.get_dbus_method("GetFULLV4Stats",
+				  self.dbus_exportstats_name)
+	return DumpFULLV4Stats(stats_state())
 
 class RetrieveClientStats():
     def __init__(self):
@@ -420,7 +430,18 @@ class StatsStatus():
 		output += "Stats counting for RPC is enabled since: \n\t"
 		output += time.ctime(self.status[4][1][0]) + str(self.status[4][1][1]) + " nsecs"
 	    else:
-		 output += "Stats counting for RPC is currently disabled"
+		 output += "Stats counting for RPC is currently disabled \n"
+	    if self.status[5][0]:
+		output += "Stats counting for v3_full is enabled since: \n\t"
+		output += time.ctime(self.status[5][1][0]) + str(self.status[5][1][1]) + " nsecs"
+	    else:
+		 output += "Stats counting for v3_full is currently disabled \n"
+	    return output
+	    if self.status[6][0]:
+		output += "Stats counting for v4_full is enabled since: \n\t"
+		output += time.ctime(self.status[6][1][0]) + str(self.status[6][1][1]) + " nsecs"
+	    else:
+		 output += "Stats counting for v4_full is currently disabled \n"
 	    return output
 
 class StatsRPC():
@@ -431,18 +452,23 @@ class StatsRPC():
 	if not self.status[0]:
 	    return "Unable to fetch RPC stats - " + self.status[1]
 	else:
-	    output += "RPC Queue Statistics (4 Queues): "
-	    output += "\n Total Requests : " + " %s" % (str(self.status[2][0]).rjust(8))
-	    output += "\n Active Requests: " + " %s" % (str(self.status[2][1]).rjust(8))
-	    output += "\n QueueName  \t\tTotal   Active   Min Res Time Max Res Time (Milliseconds)"
+	    output += ("Timestamp: " + time.ctime(self.status[2][0]) + str(self.status[2][1]) + " nsecs\n")
+	    output += "\nRPC Receive Queue Statistics (4 Queues): "
+	    output += "\n\tPending Requests   : " + " %s" % (str(self.status[3][1]).rjust(8))
+	    output += "\n\tCompleted Requests : " + " %s" % (str(self.status[3][0]).rjust(8))
+	    output += "\n QueueName\t     Pending  Complete      Avg wait      Max wait  (Milliseconds)"
 	    i = 0
 	    while i < 20:
-		output += "\n" + (self.status[2][i+2]).ljust(20)
-		output += " %s" % (str(self.status[2][i+3]).rjust(8))
-		output += " %s" % (str(self.status[2][i+4]).rjust(8))
-		output += "  %12.6f" % (self.status[2][i+5])
-		output += "  %12.6f" % (self.status[2][i+6])
+		output += "\n" + (self.status[3][i+2]).ljust(20)
+		output += "%s " % (str(self.status[3][i+3]).rjust(8))
+		output += " %s" % (str(self.status[3][i+4]).rjust(8))
+		output += "  %12.6f" % (self.status[3][i+5])
+		output += "  %12.6f" % (self.status[3][i+6])
 		i += 5
+	    output += "\n\n\nRPC Send Queue Status (Milliseconds):"
+	    output += "\n\tRPCs sent - %s" % (str(self.status[4][0]).rjust(16))
+	    output += "\n\tAvg wait time - %12.6f" % (self.status[4][1])
+	    output += "\n\tMax wait time - %12.6f" % (self.status[4][2])
 	    return output
 
 class DumpFSALStats():
@@ -509,3 +535,66 @@ class StatsPool():
 	    return output
         else:
             return "Failed to get Pool allocation numbers"
+
+class DumpFULLV3Stats():
+    def __init__(self, status):
+	self.stats = status
+    def __str__(self):
+	output = ""
+	if not self.stats[0]:
+	    return "Unable to fetch Detailed NFSv3 stats - " + self.stats[1]
+	else:
+	    output += "NFSv3 Detailed statistics \n"
+	    output += ("Timestamp: " + time.ctime(self.stats[2][0]) + str(self.stats[2][1]) + " nsecs\n")
+	    if self.stats[4] != "OK":
+		output += "\n No stats available for display"
+		return output
+	    output += "\nOperation Details                         |  Operation Latency                     |  Queue Latency"
+	    output += "\n==========================================|========================================|======================================="
+	    output += "\nName            Total     Error      Dups |       Avg          Min           Max   |      Avg          Min           Max"
+	    i = 0
+	    tot_len = len(self.stats[3])
+	    while (i+10) <= tot_len:
+		output += "\n" + (self.stats[3][i+0]).ljust(11)
+		output += " %s" % (str(self.stats[3][i+1]).rjust(9))
+		output += " %s" % (str(self.stats[3][i+2]).rjust(9))
+		output += " %s |" % (str(self.stats[3][i+3]).rjust(9))
+		output += " %12.6f" % (self.stats[3][i+4])
+		output += " %12.6f" % (self.stats[3][i+5])
+		output += " %12.6f |" % (self.stats[3][i+6])
+		output += " %12.6f" % (self.stats[3][i+7])
+		output += " %12.6f" % (self.stats[3][i+8])
+		output += " %12.6f" % (self.stats[3][i+9])
+		i += 10
+	    return output
+
+class DumpFULLV4Stats():
+    def __init__(self, status):
+	self.stats = status
+    def __str__(self):
+	output = ""
+	if not self.stats[0]:
+	    return "Unable to fetch Detailed NFSv4 stats - " + self.stats[1]
+	else:
+	    output += "NFSv4 Detailed statistics \n"
+	    output += ("Timestamp: " + time.ctime(self.stats[2][0]) + str(self.stats[2][1]) + " nsecs\n")
+	    if self.stats[4] != "OK":
+		output += "\n No stats available for display"
+		return output
+	    output += "\nOperation Details                |  Operation Latency                     |  Queue Latency"
+	    output += "\n=================================|========================================|======================================="
+	    output += "\nName            Total     Error  |       Avg          Min           Max   |      Avg          Min           Max"
+	    i = 0
+	    tot_len = len(self.stats[3])
+	    while (i+9) <= tot_len:
+		output += "\n" + (self.stats[3][i+0]).ljust(11)
+		output += " %s" % (str(self.stats[3][i+1]).rjust(9))
+		output += " %s |" % (str(self.stats[3][i+2]).rjust(9))
+		output += " %12.6f" % (self.stats[3][i+3])
+		output += " %12.6f" % (self.stats[3][i+4])
+		output += " %12.6f |" % (self.stats[3][i+5])
+		output += " %12.6f" % (self.stats[3][i+6])
+		output += " %12.6f" % (self.stats[3][i+7])
+		output += " %12.6f" % (self.stats[3][i+8])
+		i += 9
+	    return output

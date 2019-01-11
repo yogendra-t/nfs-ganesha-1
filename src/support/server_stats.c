@@ -443,6 +443,12 @@ pthread_rwlock_t mpool_lock;
  */
 #include "server_stats_private.h"
 
+/* NFSv3 Detailed stats holder */
+struct proto_op v3_full_stats[NFSPROC3_COMMIT+1];
+
+/* NFSv4 Detailed stats holder */
+struct proto_op v4_full_stats[NFS_V42_NB_OPERATION+1];
+
 /**
  * @brief Get stats struct helpers
  *
@@ -1185,10 +1191,14 @@ void server_stats_9p_done(u8 opc, struct _9p_request_data *req9p)
 }
 #endif
 
-static void record_nfsv3_stats(struct svc_req *req,
+static void record_v3_full_stats(struct svc_req *req,
 			       nsecs_elapsed_t request_time,
 			       nsecs_elapsed_t qwait_time,
 			       bool success, bool dup);
+static void record_v4_full_stats(uint32_t proc,
+			       nsecs_elapsed_t request_time,
+			       nsecs_elapsed_t qwait_time,
+			       bool success);
 
 /**
  * @brief record NFS op finished
@@ -1221,8 +1231,11 @@ void server_stats_nfs_done(request_data_t *reqdata, int rc, bool dup)
 
 	now(&current_time);
 	stop_time = timespec_diff(&ServerBootTime, &current_time);
-	record_nfsv3_stats(req, stop_time - op_ctx->start_time,
-		    op_ctx->queue_wait, rc == NFS_REQ_OK, dup);
+
+	if (nfs_param.core_param.enable_FULLV3STATS)
+		record_v3_full_stats(req, stop_time - op_ctx->start_time,
+			    op_ctx->queue_wait, rc == NFS_REQ_OK, dup);
+
 	if (client != NULL) {
 		struct server_stats *server_st;
 
@@ -1270,6 +1283,10 @@ void server_stats_nfsv4_op_done(int proto_op,
 
 	now(&current_time);
 	stop_time = timespec_diff(&ServerBootTime, &current_time);
+
+	if (nfs_param.core_param.enable_FULLV4STATS)
+		record_v4_full_stats(proto_op, stop_time - op_ctx->start_time,
+			    op_ctx->queue_wait, status == NFS4_OK);
 
 	if (client != NULL) {
 		struct server_stats *server_st;
@@ -1965,6 +1982,8 @@ void reset_server_stats(void)
 	reset_global_stats();
 	reset_export_stats();
 	reset_client_stats();
+	reset_v3_full_stats();
+	reset_v4_full_stats();
 }
 
 #ifdef _USE_9P
@@ -2114,6 +2133,163 @@ void server_dbus_mem_pool(DBusMessageIter *iter)
 	dbus_message_iter_close_container(iter, &array_iter);
 }
 
+/**
+ * @brief NFSv3 Detailed stats reporting
+ */
+void server_dbus_v3_full_stats(DBusMessageIter *iter)
+{
+	struct timespec timestamp;
+	DBusMessageIter array_iter;
+	int op;
+	double res = 0.0;
+	uint64_t op_counter = 0;
+	char *message;
+
+	now(&timestamp);
+	dbus_append_timestamp(iter, &timestamp);
+	dbus_message_iter_open_container(iter, DBUS_TYPE_STRUCT,
+					 NULL, &array_iter);
+	for (op = 1; op < NFSPROC3_COMMIT+1; op++) {
+		if (v3_full_stats[op].total) {
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_STRING, &optabv3[op].name);
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &v3_full_stats[op].total);
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &v3_full_stats[op].errors);
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &v3_full_stats[op].dups);
+			res = (double) v3_full_stats[op].latency.latency /
+					v3_full_stats[op].total * 0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v3_full_stats[op].latency.min * 0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v3_full_stats[op].latency.max * 0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v3_full_stats[op].queue_latency.latency /
+					v3_full_stats[op].total * 0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v3_full_stats[op].queue_latency.min *
+					0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v3_full_stats[op].queue_latency.max *
+					0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			op_counter += v3_full_stats[op].total;
+		}
+	}
+	if (op_counter == 0) {
+		message = "None";
+		/* insert dummy stats to avoid dbus crash */
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_STRING, &message);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &op_counter);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &op_counter);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &op_counter);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+	} else {
+		message = "OK";
+	}
+	dbus_message_iter_close_container(iter, &array_iter);
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING, &message);
+}
+
+/**
+ * @brief NFSv4 Detailed stats reporting
+ */
+void server_dbus_v4_full_stats(DBusMessageIter *iter)
+{
+	struct timespec timestamp;
+	DBusMessageIter array_iter;
+	int op;
+	double res = 0.0;
+	uint64_t op_counter = 0;
+	char *message;
+
+	now(&timestamp);
+	dbus_append_timestamp(iter, &timestamp);
+	dbus_message_iter_open_container(iter, DBUS_TYPE_STRUCT,
+					 NULL, &array_iter);
+	for (op = 1; op < NFS_V42_NB_OPERATION+1; op++) {
+		if (v4_full_stats[op].total) {
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_STRING, &optabv4[op].name);
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &v4_full_stats[op].total);
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &v4_full_stats[op].errors);
+			res = (double) v4_full_stats[op].latency.latency /
+					v4_full_stats[op].total * 0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v4_full_stats[op].latency.min * 0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v4_full_stats[op].latency.max * 0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v4_full_stats[op].queue_latency.latency /
+					v4_full_stats[op].total * 0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v4_full_stats[op].queue_latency.min *
+					0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			res = (double) v4_full_stats[op].queue_latency.max *
+					0.000001;
+			dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+			op_counter += v4_full_stats[op].total;
+		}
+	}
+	if (op_counter == 0) {
+		message = "None";
+		/* insert dummy stats to avoid dbus crash */
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_STRING, &message);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &op_counter);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_UINT64, &op_counter);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+		dbus_message_iter_append_basic(&array_iter,
+				DBUS_TYPE_DOUBLE, &res);
+	} else {
+		message = "OK";
+	}
+	dbus_message_iter_close_container(iter, &array_iter);
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING, &message);
+}
 #endif				/* USE_DBUS */
 
 /**
@@ -2169,8 +2345,7 @@ void server_stats_free(struct gsh_stats *statsp)
 #endif
 }
 
-struct proto_op nfsv3_stats[NFSPROC3_COMMIT+1];
-static void record_nfsv3_stats(struct svc_req *req,
+static void record_v3_full_stats(struct svc_req *req,
 			       nsecs_elapsed_t request_time,
 			       nsecs_elapsed_t qwait_time,
 			       bool success, bool dup)
@@ -2186,65 +2361,58 @@ static void record_nfsv3_stats(struct svc_req *req,
 				proc);
 			return;
 		}
-		record_op(&nfsv3_stats[proc], request_time, qwait_time,
+		record_op(&v3_full_stats[proc], request_time, qwait_time,
 			  success, dup);
 	}
 }
 
-void RESET_nfsv3_stats(void)
+void reset_v3_full_stats(void)
 {
 	int op;
 
 	for (op = 1; op < NFSPROC3_COMMIT+1; op++) {
-		nfsv3_stats[op].total = 0;
-		nfsv3_stats[op].errors = 0;
-		nfsv3_stats[op].dups = 0;
-		nfsv3_stats[op].latency.latency = 0;
-		nfsv3_stats[op].latency.min = 0;
-		nfsv3_stats[op].latency.max = 0;
-		nfsv3_stats[op].queue_latency.latency = 0;
-		nfsv3_stats[op].queue_latency.min = 0;
-		nfsv3_stats[op].queue_latency.max = 0;
+		v3_full_stats[op].total = 0;
+		v3_full_stats[op].errors = 0;
+		v3_full_stats[op].dups = 0;
+		v3_full_stats[op].latency.latency = 0;
+		v3_full_stats[op].latency.min = 0;
+		v3_full_stats[op].latency.max = 0;
+		v3_full_stats[op].queue_latency.latency = 0;
+		v3_full_stats[op].queue_latency.min = 0;
+		v3_full_stats[op].queue_latency.max = 0;
 	}
 }
 
-void dump_nfsv3_stats(void)
+static void record_v4_full_stats(uint32_t proc,
+			       nsecs_elapsed_t request_time,
+			       nsecs_elapsed_t qwait_time,
+			       bool success)
 {
-	FILE *fp;
-	int op;
-	time_t t = time(NULL);
-	struct tm tm = *localtime(&t);
-	char datetime[30];
-
-	fp = fopen("/tmp/ganesha-nfs3-stats.txt", "a");
-	if (fp == NULL)
+	if (proc > NFS_V42_NB_OPERATION) {
+		LogCrit(COMPONENT_DBUS,
+			"proc is more than NFS4_OP_WRITE_SAME: %d\n",
+			proc);
 		return;
-
-	snprintf(datetime, sizeof(datetime),
-			"%04d-%02d-%02dT%02d-%02d-%02d",
-			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-			tm.tm_hour, tm.tm_min, tm.tm_sec);
-	fprintf(fp, "Stats extracted at %s, times are in ms\n", datetime);
-	fprintf(fp, "%-15s\ttotal\terrors\tdups\tlatency-avg\tlatency-min"
-			"\tlatency-max\tqwait-avg\tqwait-min\tqwait-max\n",
-			"op_name");
-	for (op = 1; op < NFSPROC3_COMMIT+1; op++) {
-		if (nfsv3_stats[op].total)
-			fprintf(fp,
-				"%-15s\t%lu\t%lu\t%lu"
-				"\t%f\t%f\t%f\t%f\t%f\t%f\n",
-				optabv3[op].name, nfsv3_stats[op].total,
-				nfsv3_stats[op].errors, nfsv3_stats[op].dups,
-				(float)nfsv3_stats[op].latency.latency /
-					nfsv3_stats[op].total/NS_PER_MSEC,
-				(float)nfsv3_stats[op].latency.min/NS_PER_MSEC,
-				(float)nfsv3_stats[op].latency.max/NS_PER_MSEC,
-				(float)nfsv3_stats[op].queue_latency.latency /
-					nfsv3_stats[op].total/NS_PER_MSEC,
-				(float)nfsv3_stats[op].queue_latency.min/NS_PER_MSEC,
-				(float)nfsv3_stats[op].queue_latency.max/NS_PER_MSEC);
 	}
-	fclose(fp);
+	record_op(&v4_full_stats[proc], request_time, qwait_time,
+			  success, false);
+}
+
+void reset_v4_full_stats(void)
+{
+	int op;
+
+	for (op = 1; op < NFS_V42_NB_OPERATION+1; op++) {
+		v4_full_stats[op].total = 0;
+		v4_full_stats[op].errors = 0;
+		v4_full_stats[op].dups = 0;
+		v4_full_stats[op].latency.latency = 0;
+		v4_full_stats[op].latency.min = 0;
+		v4_full_stats[op].latency.max = 0;
+		v4_full_stats[op].queue_latency.latency = 0;
+		v4_full_stats[op].queue_latency.min = 0;
+		v4_full_stats[op].queue_latency.max = 0;
+	}
 }
 
 /** @} */
