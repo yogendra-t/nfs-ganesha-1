@@ -43,6 +43,7 @@
 #include "fsal.h"
 #include "mdcache_int.h"
 #include "mdcache_avl.h"
+#include "mdcache_lru.h"
 #include "murmur3.h"
 #include "city.h"
 
