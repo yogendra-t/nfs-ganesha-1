@@ -80,10 +80,9 @@
 	})
 
 #define gsh_strdup(s) ({ \
-		char *p_ = strdup(s); \
-		if (p_ == NULL) { \
-			abort(); \
-		} \
+		size_t n_ = strlen(s)+1; \
+		char *p_ = (char *) gsh_malloc(n_); \
+		memcpy(p_, s, n_); \
 		p_; \
 	})
 
