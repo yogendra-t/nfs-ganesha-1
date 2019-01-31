@@ -47,47 +47,6 @@
 #include "gsh_list.h"
 #include "common_utils.h"
 
-/**
- * @page GeneralAllocator General Allocator Shim
- *
- * These functions provide an interface akin to the standard libc
- * allocation functions.  Currently they call the functions malloc,
- * free, and so forth, with changes in functionality being provided by
- * linking in alternate allocator libraries (tcmalloc and jemalloc, at
- * present.)  So long as the interface remains the same, these
- * functions can be switched out using ifdef for versions that do more
- * memory tracking or that call allocators with other names.
- */
-
-/**
- * @brief Allocate memory
- *
- * This function allocates a block of memory no less than the given
- * size. The block of memory allocated must be released with gsh_free.
- *
- * This function aborts if no memory is available.
- *
- * @param[in] n Number of bytes to allocate
- * @param[in] file Calling source file
- * @param[in] line Calling source line
- * @param[in] function Calling source function
- *
- * @return Pointer to a block of memory.
- */
-static inline void *
-gsh_malloc__(size_t n,
-	     const char *file, int line, const char *function)
-{
-	void *p = malloc(n);
-
-	if (p == NULL) {
-		LogMallocFailure(file, line, function, "gsh_malloc");
-		abort();
-	}
-
-	return p;
-}
-
 #define gsh_malloc(n) ({ \
 		void *p_ = malloc(n); \
 		if (p_ == NULL) { \
@@ -95,41 +54,6 @@ gsh_malloc__(size_t n,
 		} \
 		p_; \
 	})
-
-/**
- * @brief Allocate aligned memory
- *
- * This function allocates a block of memory to the given alignment.
- * Failure may indicate either insufficient memory or an invalid
- * alignment.
- *
- * @param[in] a Block alignment
- * @param[in] n Number of bytes to allocate
- * @param[in] file Calling source file
- * @param[in] line Calling source line
- * @param[in] function Calling source function
- *
- * @return Pointer to a block of memory or NULL.
- */
-static inline void *
-gsh_malloc_aligned__(size_t a, size_t n,
-		     const char *file, int line, const char *function)
-{
-	void *p;
-
-#ifdef __APPLE__
-	p = valloc(n);
-#else
-	if (posix_memalign(&p, a, n) != 0)
-		p = NULL;
-#endif
-	if (p == NULL) {
-		LogMallocFailure(file, line, function, "gsh_malloc_aligned");
-		abort();
-	}
-
-	return p;
-}
 
 #define gsh_malloc_aligned(a, n) ({ \
 		void *p_; \
@@ -139,33 +63,6 @@ gsh_malloc_aligned__(size_t a, size_t n,
 		p_; \
 	})
 
-/**
- * @brief Allocate zeroed memory
- *
- * This function allocates a block of memory that is guaranteed to be
- * zeroed. The block of memory allocated must be released with gsh_free.
- *
- * This function aborts if no memory is available.
- *
- * @param[in] n Number of objects in block
- * @param[in] s Size of object
- *
- * @return Pointer to a block of zeroed memory.
- */
-static inline void *
-gsh_calloc__(size_t n, size_t s,
-	     const char *file, int line, const char *function)
-{
-	void *p = calloc(n, s);
-
-	if (p == NULL) {
-		LogMallocFailure(file, line, function, "gsh_calloc");
-		abort();
-	}
-
-	return p;
-}
-
 #define gsh_calloc(n, s) ({ \
 		void *p_ = calloc(n, s); \
 		if (p_ == NULL) { \
@@ -173,37 +70,6 @@ gsh_calloc__(size_t n, size_t s,
 		} \
 		p_; \
 	})
-
-/**
- * @brief Resize a block of memory
- *
- * This function resizes the buffer indicated by the supplied pointer
- * to the given size.  The block may be moved in this process.  On
- * failure, the original block is retained at its original address.
- *
- * This function aborts if no memory is available to resize.
- *
- * @param[in] p Block of memory to resize
- * @param[in] n New size
- * @param[in] file Calling source file
- * @param[in] line Calling source line
- * @param[in] function Calling source function
- *
- * @return Pointer to the address of the resized block.
- */
-static inline void *
-gsh_realloc__(void *p, size_t n,
-	      const char *file, int line, const char *function)
-{
-	void *p2 = realloc(p, n);
-
-	if (n != 0 && p2 == NULL) {
-		LogMallocFailure(file, line, function, "gsh_realloc");
-		abort();
-	}
-
-	return p2;
-}
 
 #define gsh_realloc(p, n) ({ \
 		void *p2_ = realloc(p, n); \
@@ -245,22 +111,6 @@ gsh_realloc__(void *p, size_t n,
  */
 static inline void
 gsh_free(void *p)
-{
-	free(p);
-}
-
-/**
- * @brief Free a block of memory with size
- *
- * This function exists to be passed to TIRPC when setting
- * allocators.  It should not be used by anyone else.  New shim layers
- * should not redefine it.
- *
- * @param[in] p  Block of memory to free.
- * @param[in] n  Size of block (unused)
- */
-static inline void
-gsh_free_size(void *p, size_t n __attribute__ ((unused)))
 {
 	free(p);
 }
