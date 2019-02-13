@@ -1,7 +1,7 @@
 /*
  * vim:noexpandtab:shiftwidth=8:tabstop=8:
  *
- * Copyright 2015-2017 Red Hat, Inc. and/or its affiliates.
+ * Copyright 2015-2019 Red Hat, Inc. and/or its affiliates.
  * Author: Daniel Gryniewicz <dang@redhat.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -331,10 +331,6 @@ struct dir_chunk {
 	/** Number of entries in chunk */
 	int num_entries;
 };
-
-#define mdc_prev_chunk(c) glist_prev_entry(&(c)->parent->fsobj.fsdir.chunks, \
-			struct dir_chunk, chunks, &(c)->chunks)
-
 
 /**
  * @brief Represents a cached directory entry
