@@ -423,23 +423,22 @@ class StatsStatus():
 		 output += "Stats counting for NFS server is currently disabled\n"
 	    if self.status[3][0]:
 		output += "Stats counting for FSAL is enabled since: \n\t"
-		output += time.ctime(self.status[3][1][0]) + str(self.status[3][1][1]) + " nsecs"
+		output += time.ctime(self.status[3][1][0]) + str(self.status[3][1][1]) + " nsecs\n"
 	    else:
 		 output += "Stats counting for FSAL is currently disabled \n"
 	    if self.status[4][0]:
 		output += "Stats counting for RPC is enabled since: \n\t"
-		output += time.ctime(self.status[4][1][0]) + str(self.status[4][1][1]) + " nsecs"
+		output += time.ctime(self.status[4][1][0]) + str(self.status[4][1][1]) + " nsecs\n"
 	    else:
 		 output += "Stats counting for RPC is currently disabled \n"
 	    if self.status[5][0]:
 		output += "Stats counting for v3_full is enabled since: \n\t"
-		output += time.ctime(self.status[5][1][0]) + str(self.status[5][1][1]) + " nsecs"
+		output += time.ctime(self.status[5][1][0]) + str(self.status[5][1][1]) + " nsecs\n"
 	    else:
 		 output += "Stats counting for v3_full is currently disabled \n"
-	    return output
 	    if self.status[6][0]:
 		output += "Stats counting for v4_full is enabled since: \n\t"
-		output += time.ctime(self.status[6][1][0]) + str(self.status[6][1][1]) + " nsecs"
+		output += time.ctime(self.status[6][1][0]) + str(self.status[6][1][1]) + " nsecs\n"
 	    else:
 		 output += "Stats counting for v4_full is currently disabled \n"
 	    return output

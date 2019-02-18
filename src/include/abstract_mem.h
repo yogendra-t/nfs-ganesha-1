@@ -47,218 +47,58 @@
 #include "gsh_list.h"
 #include "common_utils.h"
 
-/**
- * @page GeneralAllocator General Allocator Shim
- *
- * These functions provide an interface akin to the standard libc
- * allocation functions.  Currently they call the functions malloc,
- * free, and so forth, with changes in functionality being provided by
- * linking in alternate allocator libraries (tcmalloc and jemalloc, at
- * present.)  So long as the interface remains the same, these
- * functions can be switched out using ifdef for versions that do more
- * memory tracking or that call allocators with other names.
- */
+#define gsh_malloc(n) ({ \
+		void *p_ = malloc(n); \
+		if (p_ == NULL) { \
+			abort(); \
+		} \
+		p_; \
+	})
 
-/**
- * @brief Allocate memory
- *
- * This function allocates a block of memory no less than the given
- * size. The block of memory allocated must be released with gsh_free.
- *
- * This function aborts if no memory is available.
- *
- * @param[in] n Number of bytes to allocate
- * @param[in] file Calling source file
- * @param[in] line Calling source line
- * @param[in] function Calling source function
- *
- * @return Pointer to a block of memory.
- */
-static inline void *
-gsh_malloc__(size_t n,
-	     const char *file, int line, const char *function)
-{
-	void *p = malloc(n);
+#define gsh_malloc_aligned(a, n) ({ \
+		void *p_; \
+		if (posix_memalign(&p_, a, n) != 0) { \
+			abort(); \
+		} \
+		p_; \
+	})
 
-	if (p == NULL) {
-		LogMallocFailure(file, line, function, "gsh_malloc");
-		abort();
-	}
+#define gsh_calloc(n, s) ({ \
+		void *p_ = calloc(n, s); \
+		if (p_ == NULL) { \
+			abort(); \
+		} \
+		p_; \
+	})
 
-	return p;
-}
+#define gsh_realloc(p, n) ({ \
+		void *p2_ = realloc(p, n); \
+		if (n != 0 && p2_ == NULL) { \
+			abort(); \
+		} \
+		p2_; \
+	})
 
-#define gsh_malloc(n) gsh_malloc__(n, __FILE__, __LINE__, __func__)
+#define gsh_strdup(s) ({ \
+		size_t n_ = strlen(s)+1; \
+		char *p_ = (char *) gsh_malloc(n_); \
+		memcpy(p_, s, n_); \
+		p_; \
+	})
 
-/**
- * @brief Allocate aligned memory
- *
- * This function allocates a block of memory to the given alignment.
- * Failure may indicate either insufficient memory or an invalid
- * alignment.
- *
- * @param[in] a Block alignment
- * @param[in] n Number of bytes to allocate
- * @param[in] file Calling source file
- * @param[in] line Calling source line
- * @param[in] function Calling source function
- *
- * @return Pointer to a block of memory or NULL.
- */
-static inline void *
-gsh_malloc_aligned__(size_t a, size_t n,
-		     const char *file, int line, const char *function)
-{
-	void *p;
+#define gsh_strldup(s, l, n) ({ \
+		char *p_ = (char *) gsh_malloc(l+1); \
+		memcpy(p_, s, l); \
+		p_[l] = '\0'; \
+		*n = l + 1; \
+		p_; \
+	})
 
-#ifdef __APPLE__
-	p = valloc(n);
-#else
-	if (posix_memalign(&p, a, n) != 0)
-		p = NULL;
-#endif
-	if (p == NULL) {
-		LogMallocFailure(file, line, function, "gsh_malloc_aligned");
-		abort();
-	}
-
-	return p;
-}
-
-#define gsh_malloc_aligned(a, n) \
-	gsh_malloc_aligned__(a, n, __FILE__, __LINE__, __func__)
-
-/**
- * @brief Allocate zeroed memory
- *
- * This function allocates a block of memory that is guaranteed to be
- * zeroed. The block of memory allocated must be released with gsh_free.
- *
- * This function aborts if no memory is available.
- *
- * @param[in] n Number of objects in block
- * @param[in] s Size of object
- *
- * @return Pointer to a block of zeroed memory.
- */
-static inline void *
-gsh_calloc__(size_t n, size_t s,
-	     const char *file, int line, const char *function)
-{
-	void *p = calloc(n, s);
-
-	if (p == NULL) {
-		LogMallocFailure(file, line, function, "gsh_calloc");
-		abort();
-	}
-
-	return p;
-}
-
-#define gsh_calloc(n, s) gsh_calloc__(n, s, __FILE__, __LINE__, __func__)
-
-/**
- * @brief Resize a block of memory
- *
- * This function resizes the buffer indicated by the supplied pointer
- * to the given size.  The block may be moved in this process.  On
- * failure, the original block is retained at its original address.
- *
- * This function aborts if no memory is available to resize.
- *
- * @param[in] p Block of memory to resize
- * @param[in] n New size
- * @param[in] file Calling source file
- * @param[in] line Calling source line
- * @param[in] function Calling source function
- *
- * @return Pointer to the address of the resized block.
- */
-static inline void *
-gsh_realloc__(void *p, size_t n,
-	      const char *file, int line, const char *function)
-{
-	void *p2 = realloc(p, n);
-
-	if (n != 0 && p2 == NULL) {
-		LogMallocFailure(file, line, function, "gsh_realloc");
-		abort();
-	}
-
-	return p2;
-}
-
-#define gsh_realloc(p, n) gsh_realloc__(p, n, __FILE__, __LINE__, __func__)
-
-/**
- * @brief Duplicate a string to newly allocated memory
- *
- * This function allocates a new block of memory sufficient to contain
- * the supplied string, then copies the string into that buffer.
- *
- * This function aborts if no memory is available.
- *
- * @param[in] s  String to duplicate
- * @param[in] file Calling source file
- * @param[in] line Calling source line
- * @param[in] function Calling source function
- *
- * @return Pointer to new copy of string.
- */
-static inline char *
-gsh_strdup__(const char *s, const char *file, int line, const char *function)
-{
-	char *p = strdup(s);
-
-	if (p == NULL) {
-		LogMallocFailure(file, line, function, "gsh_strdup");
-		abort();
-	}
-
-	return p;
-}
-
-#define gsh_strdup(s) gsh_strdup__(s, __FILE__, __LINE__, __func__)
-
-/**
- * @brief Duplicate a string to newly allocated memory (bounded)
- *
- * This function allocates a new block of memory sufficient to contain
- * the supplied string, then copies the string into that buffer.
- *
- * This function aborts if no memory is available.
- *
- * The returned copied value includes the terminating NUL.
- *
- * @param[in] s String to duplicate
- * @param[in] length Size of the returned string shall be <= length+1
- * @param[out] copied Number of bytes copied
- * @param[in] file Calling source file
- * @param[in] line Calling source line
- * @param[in] function Calling source function
- *
- * @return Pointer to new copy of string.
- */
-static inline char *
-gsh_strldup__(const char *s, size_t length, size_t *copied,
-	     const char *file, int line, const char *function)
-{
-	char *p = (char *) gsh_malloc__(length+1, file, line, function);
-
-	if (p == NULL) {
-		LogMallocFailure(file, line, function, "gsh_strldup");
-		abort();
-	}
-
-	memcpy(p, s, length);
-	p[length] = '\0';
-	*copied = length + 1;
-
-	return p;
-}
-
-#define gsh_strldup(s, l, n) gsh_strldup__(s, l, n, __FILE__, __LINE__, \
-						__func__)
+#define gsh_memdup(s, l) ({ \
+		void *p_ = gsh_malloc(l); \
+		memcpy(p_, s, l); \
+		p_; \
+	})
 
 /**
  * @brief Free a block of memory
@@ -270,22 +110,6 @@ gsh_strldup__(const char *s, size_t length, size_t *copied,
  */
 static inline void
 gsh_free(void *p)
-{
-	free(p);
-}
-
-/**
- * @brief Free a block of memory with size
- *
- * This function exists to be passed to TIRPC when setting
- * allocators.  It should not be used by anyone else.  New shim layers
- * should not redefine it.
- *
- * @param[in] p  Block of memory to free.
- * @param[in] n  Size of block (unused)
- */
-static inline void
-gsh_free_size(void *p, size_t n __attribute__ ((unused)))
 {
 	free(p);
 }
@@ -326,9 +150,6 @@ extern pthread_rwlock_t mpool_lock;
  *
  * @param[in] name             The name of this pool
  * @param[in] object_size      The size of objects to allocate
- * @param[in] file             Calling source file
- * @param[in] line             Calling source line
- * @param[in] function         Calling source function
  *
  * @return A pointer to the pool object.  This pointer must not be
  *         dereferenced.  It may be stored or supplied as an argument
@@ -338,16 +159,14 @@ extern pthread_rwlock_t mpool_lock;
  */
 
 static inline pool_t *
-pool_basic_init__(const char *name, size_t object_size,
-		  const char *file, int line, const char *function)
+pool_basic_init(const char *name, size_t object_size)
 {
-	pool_t *pool = (pool_t *) gsh_calloc__(1, sizeof(pool_t), file, line,
-					function);
+	pool_t *pool = (pool_t *) gsh_calloc(1, sizeof(pool_t));
 
 	pool->object_size = object_size;
 
 	if (name)
-		pool->name = gsh_strdup__(name, file, line, function);
+		pool->name = gsh_strdup(name);
 	else
 		pool->name = NULL;
 
@@ -356,9 +175,6 @@ pool_basic_init__(const char *name, size_t object_size,
 	PTHREAD_RWLOCK_unlock(&mpool_lock);
 	return pool;
 }
-
-#define pool_basic_init(name, object_size) \
-	pool_basic_init__(name, object_size, __FILE__, __LINE__, __func__)
 
 /**
  * @brief Destroy a memory pool
@@ -396,25 +212,14 @@ pool_destroy(pool_t *pool)
  * This function aborts if no memory is available.
  *
  * @param[in] pool       The pool from which to allocate
- * @param[in] file       Calling source file
- * @param[in] line       Calling source line
- * @param[in] function   Calling source function
- *
  * @return A pointer to the allocated pool item.
  */
 
-static inline void *
-pool_alloc__(pool_t *pool, const char *file, int line, const char *function)
-{
-	void *ptr;
-
-	ptr = gsh_calloc__(1, pool->object_size, file, line, function);
-	(void)atomic_inc_int64_t(&pool->cnt);
-	return ptr;
-}
-
-#define pool_alloc(pool) \
-	pool_alloc__(pool, __FILE__, __LINE__, __func__)
+#define pool_alloc(pool) ({ \
+	void *p_ = gsh_calloc(1, (pool)->object_size); \
+	(void)atomic_inc_int64_t(&(pool)->cnt); \
+	p_; \
+	})
 
 /**
  * @brief Return an entry to a pool
