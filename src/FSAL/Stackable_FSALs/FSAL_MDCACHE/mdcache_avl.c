@@ -129,12 +129,16 @@ avl_dirent_set_deleted(mdcache_entry_t *entry, mdcache_dir_entry_t *v)
 				 *        the chunk...
 				 */
 
+
 				/* Look for the next chunk */
 				if (chunk->next_ck != 0 &&
 				    mdcache_avl_lookup_ck(parent,
 							  chunk->next_ck,
 							  &next)) {
 					chunk = next->chunk;
+					/* We don't need the ref, we have the
+					 * content lock */
+					mdcache_lru_unref_chunk(chunk);
 				}
 			}
 
@@ -704,6 +708,8 @@ done:
  *
  * Look up a dirent by FSAL cookie.
  *
+ * @note this takes a ref on the chunk containing @a dirent
+ *
  * @param[in] entry	Directory to search in
  * @param[in] ck	FSAL cookie to find
  * @param[out] dirent	Returned dirent, if found, NULL otherwise
@@ -740,6 +746,7 @@ bool mdcache_avl_lookup_ck(mdcache_entry_t *entry, uint64_t ck,
 			assert(!chunk);
 			return false;
 		}
+		mdcache_lru_ref_chunk(chunk);
 		*dirent = ent;
 		return true;
 	}
