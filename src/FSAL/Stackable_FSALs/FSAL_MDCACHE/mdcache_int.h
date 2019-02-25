@@ -375,7 +375,8 @@ typedef struct mdcache_dir_entry__ {
 	} hk;
 	/** Key of cache entry */
 	mdcache_key_t ckey;
-	/** Flags */
+	/** Flags
+	 * Protected by write lock or atomics. */
 	uint32_t flags;
 	/** The NUL-terminated filename */
 	char name[];
