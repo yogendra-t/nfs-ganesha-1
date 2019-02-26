@@ -1,7 +1,7 @@
 /*
  * vim:noexpandtab:shiftwidth=8:tabstop=8:
  *
- * Copyright 2015-2017 Red Hat, Inc. and/or its affiliates.
+ * Copyright 2015-2019 Red Hat, Inc. and/or its affiliates.
  * Author: Daniel Gryniewicz <dang@redhat.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -268,7 +268,7 @@ struct mdcache_fsal_obj_handle {
 	union mdcache_fsobj {
 		struct state_hdl hdl;
 		struct {
-			/** List of chunks in this directory, not ordered */
+			/** List of chunks in this directory, ordered */
 			struct glist_head chunks;
 			/** List of detached directory entries. */
 			struct glist_head detached;
@@ -322,12 +322,8 @@ struct dir_chunk {
 	struct mdcache_fsal_obj_handle *parent;
 	/** LRU link */
 	mdcache_lru_t chunk_lru;
-	/** The previous chunk, this pointer is only de-referenced during
-	 *  chunk population (where the content_lock prevents the previous
-	 *  chunk from going invalid), or used to double check but not
-	 *  de-referenced.
-	 */
-	struct dir_chunk *prev_chunk;
+	/** Cookie to use to reload this chunk */
+	fsal_cookie_t reload_ck;
 	/** Cookie of first entry in sequentially next chunk, will be set to
 	 *  0 if there is no sequentially next chunk.
 	 */
@@ -345,6 +341,7 @@ struct dir_chunk {
 
 #define DIR_ENTRY_FLAG_NONE     0x0000
 #define DIR_ENTRY_FLAG_DELETED  0x0001
+#define DIR_ENTRY_REFFED        0x0002
 #define DIR_ENTRY_SORTED        0x0004
 
 typedef struct mdcache_dir_entry__ {

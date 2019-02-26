@@ -43,6 +43,7 @@
 #include "fsal.h"
 #include "mdcache_int.h"
 #include "mdcache_avl.h"
+#include "mdcache_lru.h"
 #include "murmur3.h"
 #include "city.h"
 
@@ -129,12 +130,16 @@ avl_dirent_set_deleted(mdcache_entry_t *entry, mdcache_dir_entry_t *v)
 				 *        the chunk...
 				 */
 
+
 				/* Look for the next chunk */
 				if (chunk->next_ck != 0 &&
 				    mdcache_avl_lookup_ck(parent,
 							  chunk->next_ck,
 							  &next)) {
 					chunk = next->chunk;
+					/* We don't need the ref, we have the
+					 * content lock */
+					mdcache_lru_unref_chunk(chunk);
 				}
 			}
 
@@ -209,6 +214,8 @@ void unchunk_dirent(mdcache_dir_entry_t *dirent)
 void mdcache_avl_remove(mdcache_entry_t *parent,
 			mdcache_dir_entry_t *dirent)
 {
+	struct dir_chunk *chunk = dirent->chunk;
+
 	if (dirent->flags & DIR_ENTRY_FLAG_DELETED) {
 		/* Remove from deleted names tree */
 		avltree_remove(&dirent->node_hk, &parent->fsobj.fsdir.avl.c);
@@ -229,6 +236,10 @@ void mdcache_avl_remove(mdcache_entry_t *parent,
 		mdcache_key_delete(&dirent->ckey);
 
 	gsh_free(dirent);
+
+	LogFullDebug(COMPONENT_CACHE_INODE,
+		"Just freed dirent %p from chunk %p parent %p",
+		dirent, chunk, (chunk) ? chunk->parent : NULL);
 }
 
 /**
@@ -658,9 +669,10 @@ mdcache_avl_lookup_k(mdcache_entry_t *entry, uint64_t k, uint32_t flags,
 			 * resend the last one */
 			node = avltree_next(node);
 		if (!node) {
-			LogFullDebug(COMPONENT_NFS_READDIR,
-				     "seek to cookie=%" PRIu64
-				     " fail (no next entry)", k);
+			LogFullDebugAlt(COMPONENT_NFS_READDIR,
+					COMPONENT_CACHE_INODE,
+					"seek to cookie=%" PRIu64
+					" fail (no next entry)", k);
 			return MDCACHE_AVL_LAST;
 		}
 	}
@@ -678,8 +690,8 @@ mdcache_avl_lookup_k(mdcache_entry_t *entry, uint64_t k, uint32_t flags,
 			if (!node)
 				return MDCACHE_AVL_DELETED;
 		}
-		LogDebug(COMPONENT_NFS_READDIR,
-			 "node %p found deleted supremum %p", node2, node);
+		LogDebugAlt(COMPONENT_NFS_READDIR, COMPONENT_CACHE_INODE,
+			    "node %p found deleted supremum %p", node2, node);
 	}
 
 done:
@@ -696,6 +708,8 @@ done:
  * @brief Look up a dirent by FSAL cookie
  *
  * Look up a dirent by FSAL cookie.
+ *
+ * @note this takes a ref on the chunk containing @a dirent
  *
  * @param[in] entry	Directory to search in
  * @param[in] ck	FSAL cookie to find
@@ -733,6 +747,7 @@ bool mdcache_avl_lookup_ck(mdcache_entry_t *entry, uint64_t ck,
 			assert(!chunk);
 			return false;
 		}
+		mdcache_lru_ref_chunk(chunk);
 		*dirent = ent;
 		return true;
 	}
