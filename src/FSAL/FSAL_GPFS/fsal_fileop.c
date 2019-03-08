@@ -125,7 +125,7 @@ fsal_status_t GPFSFSAL_open(struct fsal_obj_handle *obj_hdl,
 					   p_context, myself->handle,
 					   p_file_attributes);
 		if (FSAL_IS_ERROR(status)) {
-			close(*file_desc);
+			fsal_internal_close(*file_desc, NULL, 0);
 			return status;
 		}
 	}

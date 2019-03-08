@@ -194,7 +194,7 @@ fsal_status_t GPFSFSAL_symlink(struct fsal_obj_handle *dir_hdl,	/* IN */
 	fsal_restore_ganesha_credentials();
 
 	if (rc) {
-		close(fd);
+		fsal_internal_close(fd, NULL, 0);
 		return fsalstat(posix2fsal_error(errsv), errsv);
 	}
 
@@ -203,7 +203,7 @@ fsal_status_t GPFSFSAL_symlink(struct fsal_obj_handle *dir_hdl,	/* IN */
 	status = fsal_internal_get_handle_at(fd, p_linkname, p_link_handle);
 
 	if (FSAL_IS_ERROR(status)) {
-		close(fd);
+		fsal_internal_close(fd, NULL, 0);
 		return status;
 	}
 
@@ -221,12 +221,12 @@ fsal_status_t GPFSFSAL_symlink(struct fsal_obj_handle *dir_hdl,	/* IN */
 			FSAL_CLEAR_MASK(p_link_attributes->mask);
 			FSAL_SET_MASK(p_link_attributes->mask, ATTR_RDATTR_ERR);
 		} else if (p_link_attributes->type != SYMBOLIC_LINK) {
-			close(fd);
+			fsal_internal_close(fd, NULL, 0);
 			return fsalstat(ERR_FSAL_EXIST, 0);
 		}
 	}
 
 	/* OK */
-	close(fd);
+	fsal_internal_close(fd, NULL, 0);
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

@@ -475,7 +475,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 
 	status = fsal_internal_handle2fd_at(gpfs_fs->root_fd, myself->handle,
 					    &dirfd, O_RDONLY | O_DIRECTORY, 0);
-	if (dirfd < 0)
+	if (FSAL_IS_ERROR(status))
 		return status;
 
 	seekloc = lseek(dirfd, seekloc, SEEK_SET);
@@ -513,7 +513,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 
 	*eof = true;
  done:
-	close(dirfd);
+	fsal_internal_close(dirfd, NULL, 0);
 
 	return fsalstat(fsal_error, retval);
 }
@@ -812,7 +812,7 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
 
 	fsal_status = fsal_internal_fd2handle(dir_fd, fh);
 	if (FSAL_IS_ERROR(fsal_status))
-		goto fileerr;
+		goto errout;
 
 	gpfs_export = container_of(exp_hdl, struct gpfs_fsal_export, export);
 	attributes.mask = exp_hdl->exp_ops.fs_supported_attrs(exp_hdl);
@@ -868,7 +868,7 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
 		gsh_free(acl_buf);
 	}
 
-	close(dir_fd);
+	fsal_internal_close(dir_fd, NULL, 0);
 
 	gpfs_extract_fsid(fh, &fsid_type, &fsid);
 
@@ -909,9 +909,7 @@ xstat_err:
 		assert(acl_buf != (gpfs_acl_t *)buffxstat.buffacl);
 		gsh_free(acl_buf);
 	}
-
-fileerr:
-	close(dir_fd);
+	fsal_internal_close(dir_fd, NULL, 0);
 
 errout:
 	return fsal_status;
