@@ -274,4 +274,9 @@ bool check_verifier_attrlist(struct attrlist *attrs, fsal_verifier_t verifier);
 
 bool fsal_common_is_referral(struct fsal_obj_handle *obj_hdl,
 			     struct attrlist *attrs, bool cache_attrs);
+
+#ifdef USE_DBUS
+void dbus_cache_init(void);
+#endif
+
 #endif				/* FSAL_COMMONLIB_H */
