@@ -52,7 +52,7 @@ fsal_status_t gpfs_open2(struct fsal_obj_handle *obj_hdl,
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
 	if (reopen) {
-		assert((myself->u.file.fd >= 0 &&
+		assert((myself->u.file.fd >= 3 &&
 			myself->u.file.openflags != FSAL_O_CLOSED));
 		fd = myself->u.file.fd;
 	} else {
@@ -121,7 +121,7 @@ fsal_status_t gpfs_read(struct fsal_obj_handle *obj_hdl,
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	assert(myself->u.file.fd >= 0
+	assert(myself->u.file.fd >= 3
 	       && myself->u.file.openflags != FSAL_O_CLOSED);
 
 	status =
@@ -153,7 +153,7 @@ fsal_status_t gpfs_read_plus(struct fsal_obj_handle *obj_hdl,
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	assert(myself->u.file.fd >= 0
+	assert(myself->u.file.fd >= 3
 	       && myself->u.file.openflags != FSAL_O_CLOSED);
 
 	rarg.mountdirfd = myself->u.file.fd;
@@ -216,7 +216,7 @@ fsal_status_t gpfs_write(struct fsal_obj_handle *obj_hdl,
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	assert(myself->u.file.fd >= 0
+	assert(myself->u.file.fd >= 3
 	       && myself->u.file.openflags != FSAL_O_CLOSED);
 
 	status =
@@ -238,7 +238,7 @@ fsal_status_t gpfs_deallocate(struct fsal_obj_handle *obj_hdl,
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	assert(myself->u.file.fd >= 0
+	assert(myself->u.file.fd >= 3
 	       && myself->u.file.openflags != FSAL_O_CLOSED);
 
 	status =
@@ -259,7 +259,7 @@ fsal_status_t gpfs_allocate(struct fsal_obj_handle *obj_hdl,
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	assert(myself->u.file.fd >= 0
+	assert(myself->u.file.fd >= 3
 	       && myself->u.file.openflags != FSAL_O_CLOSED);
 
 	status =
@@ -304,7 +304,7 @@ fsal_status_t gpfs_seek(struct fsal_obj_handle *obj_hdl,
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	assert(myself->u.file.fd >= 0
+	assert(myself->u.file.fd >= 3
 	       && myself->u.file.openflags != FSAL_O_CLOSED);
 
 	arg.mountdirfd = myself->u.file.fd;
@@ -345,7 +345,7 @@ fsal_status_t gpfs_io_advise(struct fsal_obj_handle *obj_hdl,
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	assert(myself->u.file.fd >= 0
+	assert(myself->u.file.fd >= 3
 	       && myself->u.file.openflags != FSAL_O_CLOSED);
 
 	arg.mountdirfd = myself->u.file.fd;
@@ -381,7 +381,7 @@ fsal_status_t gpfs_commit(struct fsal_obj_handle *obj_hdl,	/* sync */
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	assert(myself->u.file.fd >= 0
+	assert(myself->u.file.fd >= 3
 	       && myself->u.file.openflags != FSAL_O_CLOSED);
 
 	arg.mountdirfd = myself->u.file.fd;
@@ -419,7 +419,7 @@ fsal_status_t gpfs_lock_op(struct fsal_obj_handle *obj_hdl,
 	int retval = 0;
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	if (myself->u.file.fd < 0 ||
+	if (myself->u.file.fd < 3 ||
 			myself->u.file.openflags == FSAL_O_CLOSED) {
 		LogDebug(COMPONENT_FSAL,
 			 "Attempting to lock with no file descriptor open, fd %d",
@@ -462,11 +462,17 @@ fsal_status_t gpfs_close(struct fsal_obj_handle *obj_hdl)
 
 	assert(obj_hdl->type == REGULAR_FILE);
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	if (myself->u.file.fd >= 0 &&
+	if (myself->u.file.fd >= 3 &&
 			myself->u.file.openflags != FSAL_O_CLOSED) {
 		status = fsal_internal_close(myself->u.file.fd, NULL, 0);
 		myself->u.file.fd = -1;
 		myself->u.file.openflags = FSAL_O_CLOSED;
+	}
+	if (myself->u.file.fd < 3 &&
+			myself->u.file.openflags != FSAL_O_CLOSED) {
+		LogCrit(COMPONENT_FSAL, "Attempt to close file with fd %d",
+			myself->u.file.fd);
+		assert(0);
 	}
 	return status;
 }
@@ -484,7 +490,7 @@ fsal_status_t gpfs_lru_cleanup(struct fsal_obj_handle *obj_hdl,
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	if (obj_hdl->type == REGULAR_FILE && myself->u.file.fd >= 0) {
+	if (obj_hdl->type == REGULAR_FILE && myself->u.file.fd >= 3) {
 		status = fsal_internal_close(myself->u.file.fd, NULL, 0);
 		myself->u.file.fd = -1;
 		myself->u.file.openflags = FSAL_O_CLOSED;

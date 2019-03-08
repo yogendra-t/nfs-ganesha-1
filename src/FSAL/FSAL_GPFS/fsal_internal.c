@@ -112,6 +112,10 @@ fsal_status_t fsal_internal_close(int fd, void *owner, int cflags)
 	struct close_file_arg carg;
 	int errsv = 0;
 
+	if (fd < 3) {
+		LogCrit(COMPONENT_FSAL, "Attempt to close fd: %d", fd);
+		assert(0);
+	}
 	carg.mountdirfd = fd;
 	carg.close_fd = fd;
 	carg.close_flags = cflags;
@@ -197,6 +201,12 @@ fsal_status_t fsal_internal_handle2fd_at(int dirfd,
 	 */
 	if (!reopen)
 		*pfd = rc;
+
+	/* Check for the fd value we got from GPFS */
+	if (*pfd < 3) {
+		LogCrit(COMPONENT_FSAL, "GPFS Provided fd with value < 3");
+		assert(0);
+	}
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
