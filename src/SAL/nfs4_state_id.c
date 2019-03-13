@@ -182,14 +182,9 @@ const char *str_state_type(state_t *state)
 int display_stateid(struct display_buffer *dspbuf, state_t *state)
 {
 	int b_left;
-	cache_entry_t *entry;
 
 	if (state == NULL)
 		return display_cat(dspbuf, "STATE <NULL>");
-
-	PTHREAD_MUTEX_lock(&state->state_mutex);
-	entry = state->state_entry;
-	PTHREAD_MUTEX_unlock(&state->state_mutex);
 
 	b_left = display_printf(dspbuf,
 				"STATE %p ",
@@ -205,7 +200,7 @@ int display_stateid(struct display_buffer *dspbuf, state_t *state)
 
 	b_left = display_printf(dspbuf,
 				" entry=%p type=%s seqid=%"PRIu32" owner={",
-				entry,
+				state->state_entry,
 				str_state_type(state),
 				state->state_seqid);
 
@@ -712,7 +707,10 @@ bool nfs4_State_Del(state_t *state)
 
 	err = HashTable_Del(ht_state_id, &buffkey, &old_key, &old_value);
 
-	if (err != HASHTABLE_SUCCESS) {
+	if (err == HASHTABLE_ERROR_NO_SUCH_KEY) {
+		/* No entry found */
+		return false;
+	} else if (err != HASHTABLE_SUCCESS) {
 		char str[LOG_BUFF_LEN];
 		struct display_buffer dspbuf = {sizeof(str), str, str};
 
