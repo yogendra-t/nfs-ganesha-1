@@ -1762,6 +1762,10 @@ void cache_inode_dbus_show(DBusMessageIter *iter)
 	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_STRING, &type);
 	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
 					&cache_st.inode_mapping);
+	type = "cache_dirents";
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_STRING, &type);
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+					&cache_st.inode_dirents);
 
 	dbus_message_iter_close_container(iter, &struct_iter);
 }

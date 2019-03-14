@@ -805,6 +805,7 @@ cache_inode_release_dirents(cache_entry_t *entry,
 			if (dirent->ckey.kv.len)
 				cache_inode_key_delete(&dirent->ckey);
 			gsh_free(dirent);
+			(void)atomic_dec_uint64_t(&cache_stp->inode_dirents);
 			dirent_node = next_dirent_node;
 		}
 

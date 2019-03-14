@@ -223,6 +223,7 @@ cache_inode_operate_cached_dirent(cache_entry_t *directory,
 			/* try to rename--no longer in-place */
 			dirent3 = gsh_malloc(sizeof(cache_inode_dir_entry_t)
 					     + newnamesize);
+			(void)atomic_inc_uint64_t(&cache_stp->inode_dirents);
 			memcpy(dirent3->name, newname, newnamesize);
 			dirent3->flags = DIR_ENTRY_FLAG_NONE;
 			cache_inode_key_dup(&dirent3->ckey, &dirent->ckey);
@@ -235,6 +236,8 @@ cache_inode_operate_cached_dirent(cache_entry_t *directory,
 				avl_dirent_clear_deleted(directory, dirent);
 				/* dirent3 was never inserted */
 				gsh_free(dirent3);
+				(void)atomic_dec_uint64_t(
+						&cache_stp->inode_dirents);
 			}
 		}		/* !found */
 		break;
@@ -285,6 +288,7 @@ cache_inode_add_cached_dirent(cache_entry_t *parent,
 
 	/* in cache inode avl, we always insert on pentry_parent */
 	new_dir_entry = gsh_malloc(sizeof(cache_inode_dir_entry_t) + namesize);
+	(void)atomic_inc_uint64_t(&cache_stp->inode_dirents);
 	if (new_dir_entry == NULL) {
 		status = CACHE_INODE_MALLOC_ERROR;
 		return status;
@@ -306,6 +310,7 @@ cache_inode_add_cached_dirent(cache_entry_t *parent,
 		 */
 		gsh_free(new_dir_entry->ckey.kv.addr);
 		gsh_free(new_dir_entry);
+		(void)atomic_dec_uint64_t(&cache_stp->inode_dirents);
 		if (code == -2)
 			status = CACHE_INODE_SUCCESS;
 		else

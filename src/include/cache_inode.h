@@ -207,6 +207,7 @@ struct cache_stats {
 	uint64_t inode_conf;
 	uint64_t inode_added;
 	uint64_t inode_mapping;
+	uint64_t inode_dirents;
 };
 
 extern struct cache_stats *cache_stp;

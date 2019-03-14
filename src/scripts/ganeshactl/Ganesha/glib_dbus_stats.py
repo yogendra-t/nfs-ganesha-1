@@ -225,6 +225,7 @@ class InodeStats():
         self.cache_conflict = stats[3][7]
         self.cache_add = stats[3][9]
         self.cache_mapping = stats[3][11]
+        self.cache_dirents = stats[3][13]
     def __str__(self):
         if self.status != "OK":
             return "No NFS activity, GANESHA RESPONSE STATUS: " + self.status
@@ -234,7 +235,8 @@ class InodeStats():
                  "\nInode Cache Misses: " + str(self.cache_miss) +
                  "\nInode Cache Conflicts:: " + str(self.cache_conflict) +
                  "\nInode Cache Adds: " + str(self.cache_add) +
-                 "\nInode Cache Mapping: " + str(self.cache_mapping) )
+                 "\nInode Cache Mapping: " + str(self.cache_mapping) +
+                 "\nInode Cache Dirents: " + str(self.cache_dirents) )
 
 class FastStats():
     def __init__(self, stats):
