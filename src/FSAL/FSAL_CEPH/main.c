@@ -78,6 +78,7 @@ static fsal_staticfsinfo_t default_ceph_info = {
 #endif
 	.unique_handles = true,
 	.homogenous = true,
+	.expire_time_parent = -1,
 };
 
 static struct config_item ceph_items[] = {

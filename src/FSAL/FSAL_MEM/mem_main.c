@@ -79,6 +79,7 @@ static struct fsal_staticfsinfo_t default_mem_info = {
 	.auth_exportpath_xdev = false,
 	.xattr_access_rights = 0400,	/* root=RW, owner=R */
 	.link_supports_permission_checks = false,
+	.expire_time_parent = -1,
 };
 
 static struct config_item mem_items[] = {

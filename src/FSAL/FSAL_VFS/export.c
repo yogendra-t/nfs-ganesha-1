@@ -224,6 +224,11 @@ static uint32_t fs_xattr_access_rights(struct fsal_export *exp_hdl)
 	return fsal_xattr_access_rights(info);
 }
 
+static int32_t fs_expiretimeparent(struct fsal_export *exp_hdl)
+{
+	return -1;
+}
+
 /* get_quota
  * return quotas for this export.
  * path could cross a lower mount boundary which could
@@ -401,6 +406,7 @@ void vfs_export_ops_init(struct export_ops *ops)
 	ops->fs_supported_attrs = fs_supported_attrs;
 	ops->fs_umask = fs_umask;
 	ops->fs_xattr_access_rights = fs_xattr_access_rights;
+	ops->fs_expiretimeparent = fs_expiretimeparent;
 	ops->get_quota = get_quota;
 	ops->set_quota = set_quota;
 	ops->alloc_state = vfs_alloc_state;

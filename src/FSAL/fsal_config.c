@@ -174,4 +174,9 @@ uint32_t fsal_xattr_access_rights(struct fsal_staticfsinfo_t *info)
 	return info->xattr_access_rights;
 }
 
+int32_t fsal_expiretimeparent(struct fsal_staticfsinfo_t *info)
+{
+	return info->expire_time_parent;
+}
+
 /** @} */

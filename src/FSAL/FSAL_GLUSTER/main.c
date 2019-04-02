@@ -74,6 +74,7 @@ static struct fsal_staticfsinfo_t default_gluster_info = {
 #ifdef USE_GLUSTER_XREADDIRPLUS
 	.readdir_plus = true,
 #endif
+	.expire_time_parent = -1,
 };
 
 static struct config_item glfs_params[] = {

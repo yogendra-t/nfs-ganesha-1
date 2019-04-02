@@ -210,6 +210,11 @@ static uint32_t fs_xattr_access_rights(struct fsal_export *exp_hdl)
 	return fsal_xattr_access_rights(info);
 }
 
+static int32_t fs_expiretimeparent(struct fsal_export *exp_hdl)
+{
+	return -1;
+}
+
 /* extract a file handle from a buffer.
  * do verification checks and flag any and all suspicious bits.
  * Return an updated fh_desc into whatever was passed.  The most
@@ -264,6 +269,7 @@ void zfs_export_ops_init(struct export_ops *ops)
 	ops->fs_supported_attrs = fs_supported_attrs;
 	ops->fs_umask = fs_umask;
 	ops->fs_xattr_access_rights = fs_xattr_access_rights;
+	ops->fs_expiretimeparent = fs_expiretimeparent;
 }
 
 static struct config_item export_params[] = {
