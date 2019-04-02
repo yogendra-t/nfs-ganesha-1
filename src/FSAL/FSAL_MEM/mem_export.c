@@ -209,6 +209,11 @@ static uint32_t mem_fs_xattr_access_rights(struct fsal_export *exp_hdl)
 	return fsal_xattr_access_rights(info);
 }
 
+static int32_t mem_fs_expiretimeparent(struct fsal_export *exp_hdl)
+{
+	return -1;
+}
+
 /* extract a file handle from a buffer.
  * do verification checks and flag any and all suspicious bits.
  * Return an updated fh_desc into whatever was passed.  The most
@@ -300,6 +305,7 @@ void mem_export_ops_init(struct export_ops *ops)
 	ops->fs_supported_attrs = mem_fs_supported_attrs;
 	ops->fs_umask = mem_fs_umask;
 	ops->fs_xattr_access_rights = mem_fs_xattr_access_rights;
+	ops->fs_expiretimeparent = mem_fs_expiretimeparent;
 	ops->alloc_state = mem_alloc_state;
 }
 

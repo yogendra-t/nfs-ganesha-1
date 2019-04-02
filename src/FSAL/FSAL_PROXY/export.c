@@ -129,6 +129,11 @@ static uint32_t pxy_get_xattr_access_rights(struct fsal_export *exp_hdl)
 	return fsal_xattr_access_rights(&pm->fsinfo);
 }
 
+static int32_t pxy_fs_expiretimeparent(struct fsal_export *exp_hdl)
+{
+	return -1;
+}
+
 void pxy_export_ops_init(struct export_ops *ops)
 {
 	ops->release = pxy_release;
@@ -148,6 +153,7 @@ void pxy_export_ops_init(struct export_ops *ops)
 	ops->fs_supported_attrs = pxy_get_supported_attrs;
 	ops->fs_umask = pxy_get_umask;
 	ops->fs_xattr_access_rights = pxy_get_xattr_access_rights;
+	ops->fs_expiretimeparent = pxy_fs_expiretimeparent;
 };
 
 /* Here and not static because proxy.c needs this function

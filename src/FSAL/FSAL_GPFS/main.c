@@ -82,6 +82,7 @@ static struct fsal_staticfsinfo_t default_gpfs_info = {
 	.fsal_trace = true,
 	.fsal_grace = false,
 	.link_supports_permission_checks = true,
+	.expire_time_parent = 60,
 };
 
 /** @struct gpfs_params
