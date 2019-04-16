@@ -622,7 +622,7 @@ state_status_t state_test(cache_entry_t *entry,
 state_status_t state_lock(cache_entry_t *entry,
 			  state_owner_t *owner,
 			  state_t *state, state_blocking_t blocking,
-			  state_block_data_t *block_data,
+			  state_block_data_t **block_data,
 			  fsal_lock_param_t *lock,
 			  /* owner that holds conflicting lock */
 			  state_owner_t **holder,
