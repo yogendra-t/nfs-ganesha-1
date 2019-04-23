@@ -49,9 +49,9 @@ int nlm4_Lock(nfs_arg_t *args, struct svc_req *req, nfs_res_t *res)
 	char buffer[MAXNETOBJ_SZ * 2];
 	state_nsm_client_t *nsm_client;
 	state_nlm_client_t *nlm_client;
-	state_owner_t *nlm_owner, *holder;
+	state_owner_t *nlm_owner;
 	state_t *nlm_state;
-	fsal_lock_param_t lock, conflict;
+	fsal_lock_param_t lock;
 	int rc;
 	int grace = nfs_in_grace();
 	state_block_data_t *pblock_data = NULL;
@@ -86,7 +86,7 @@ int nlm4_Lock(nfs_arg_t *args, struct svc_req *req, nfs_res_t *res)
 		 (unsigned long long)arg->alock.l_len, buffer,
 		 arg->reclaim ? "yes" : "no");
 
-	if (!copy_netobj(&res->res_nlm4test.cookie, &arg->cookie)) {
+	if (!copy_netobj(&res->res_nlm4.cookie, &arg->cookie)) {
 		res->res_nlm4.stat.stat = NLM4_FAILED;
 		LogDebug(COMPONENT_NLM,
 			 "REQUEST RESULT: %s %s",
@@ -165,8 +165,8 @@ int nlm4_Lock(nfs_arg_t *args, struct svc_req *req, nfs_res_t *res)
 					       STATE_NON_BLOCKING,
 				  arg->block ? &pblock_data : NULL,
 				  &lock,
-				  &holder,
-				  &conflict);
+				  NULL, /* We don't need conflict info */
+				  NULL);
 
 	/* We prevented delegations from being granted while trying to acquire
 	 * the lock. However, when attempting to get a delegation in the
@@ -175,21 +175,13 @@ int nlm4_Lock(nfs_arg_t *args, struct svc_req *req, nfs_res_t *res)
 	atomic_dec_uint32_t(&entry->object.file.anon_ops);
 
 	if (state_status != STATE_SUCCESS) {
-		res->res_nlm4test.test_stat.stat =
+		res->res_nlm4.stat.stat =
 				nlm_convert_state_error(state_status);
-
-		if (state_status == STATE_LOCK_CONFLICT) {
-			nlm_process_conflict(
-			    &res->res_nlm4test.test_stat.nlm4_testrply_u.holder,
-			    holder,
-			    &conflict);
-		}
 
 		if (state_status == STATE_IN_GRACE) {
 			res->res_nlm4.stat.stat = NLM4_DENIED_GRACE_PERIOD;
 			goto out_ok;
 		}
-
 	} else {
 		res->res_nlm4.stat.stat = NLM4_GRANTED;
 	}
@@ -312,5 +304,5 @@ int nlm4_Lock_Message(nfs_arg_t *args, struct svc_req *req, nfs_res_t *res)
  */
 void nlm4_Lock_Free(nfs_res_t *res)
 {
-	netobj_free(&res->res_nlm4test.cookie);
+	netobj_free(&res->res_nlm4.cookie);
 }
