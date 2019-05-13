@@ -242,9 +242,20 @@ Summary: The NFS-GANESHA util scripts
 Group: Applications/System
 %if ( 0%{?suse_version} )
 Requires:	dbus-1-python, python-gobject2, python-pyparsing
+Requires: 	gpfs.nfs-ganesha = %{version}-%{release}, python
+BuildRequires:  python-devel
 %else
-Requires:	dbus-python, pygobject2, pyparsing
+%if ( 0%{?rhel} >= 8 )
+Requires:	python3-dbus, python3-gobject, python3-pyparsing
+Requires: 	gpfs.nfs-ganesha = %{version}-%{release}, python3
+BuildRequires:  python3-devel
+%else
+Requires:       dbus-python, pygobject2, pyparsing
+Requires: 	gpfs.nfs-ganesha = %{version}-%{release}, python2
+BuildRequires:  python2-devel
 %endif
+%endif
+
 %if %{with gui_utils}
 %if ( 0%{?suse_version} )
 BuildRequires:	python-qt4-devel
@@ -254,13 +265,7 @@ BuildRequires:	PyQt4-devel
 Requires:	PyQt4
 %endif
 %endif
-%if ( 0%{?suse_version} )
-BuildRequires:  python-devel
-Requires: gpfs.nfs-ganesha = %{version}-%{release}, python
-%else
-BuildRequires:  python2-devel
-Requires: gpfs.nfs-ganesha = %{version}-%{release}, python2
-%endif
+
 Obsoletes: nfs-ganesha-utils < 2.5.3-ibm023.00
 Provides:  nfs-ganesha-utils
 
@@ -799,8 +804,13 @@ exit 0
 %{python_sitelib}/Ganesha/*
 %{python_sitelib}/ganeshactl-*-info
 %else
+%if ( 0%{?rhel} >= 8 )
+%{python3_sitelib}/Ganesha/*
+%{python3_sitelib}/ganeshactl-*-info
+%else
 %{python2_sitelib}/Ganesha/*
 %{python2_sitelib}/ganeshactl-*-info
+%endif
 %endif
 %if %{with gui_utils}
 %{_bindir}/ganesha-admin
