@@ -64,6 +64,7 @@
 #include "nfs_exports.h"
 #include "nfs_proto_functions.h"
 #include "pnfs_utils.h"
+#include <malloc.h>
 
 /**
  * @brief Exports are stored in an AVL tree with front-end cache.
@@ -1496,11 +1497,33 @@ static bool show_cache_inode_stats(DBusMessageIter *args,
 	bool success = true;
 	char *errormsg = "OK";
 	DBusMessageIter iter;
+	char hostname[64+1] = {0};
+	char name[100];
+	FILE *fp;
+	struct mallinfo info;
 
 	dbus_message_iter_init_append(reply, &iter);
 	dbus_status_reply(&iter, success, errormsg);
 
 	cache_inode_dbus_show(&iter);
+
+	/* HACK: print mallinfo to a file, malloc_info doesn't work on
+	 * RHEL7.x
+	 */
+	(void)gethostname(hostname, sizeof(hostname));
+	snprintf(name, sizeof(name), "/tmp/mallinfo-%s.%d.txt",
+			hostname, getpid());
+	fp = fopen(name, "a");
+	if (fp != NULL) {
+		info = mallinfo();
+		fprintf(fp, "mallinfo: %d %d %d %d %d %d %d %d %d %d\n",
+			info.arena, info.ordblks, info.smblks, info.hblks,
+			info.hblkhd, info.usmblks, info.fsmblks, info.uordblks,
+			info.fordblks, info.keepcost);
+
+		fclose(fp);
+	}
+	malloc_trim(0);
 
 	return true;
 }
