@@ -238,6 +238,7 @@ int nlm_send_async(int proc, state_nlm_client_t *host, void *inarg, void *key)
 					/* getaddrinfo() failed, retry */
 					retval = RPC_UNKNOWNADDR;
 					usleep(1000);
+					close(gfd.fd);
 					continue;
 				} else if (retval != 0) {
 					LogMajor(COMPONENT_NLM,
@@ -245,6 +246,7 @@ int nlm_send_async(int proc, state_nlm_client_t *host, void *inarg, void *key)
 						 host->slc_nsm_client->
 						 ssc_nlm_caller_name,
 						 gai_strerror(retval));
+					close(gfd.fd);
 					return -1;
 				}
 
@@ -257,6 +259,8 @@ int nlm_send_async(int proc, state_nlm_client_t *host, void *inarg, void *key)
 				    clnt_vc_ncreate(gfd, &local_buf, NLMPROG,
 						    NLM4_VERS, 0, 0);
 				freeaddrinfo(result);
+				if (host->slc_callback_clnt == NULL)
+					close(gfd.fd);
 			} else {
 
 				host->slc_callback_clnt = gsh_clnt_create(
