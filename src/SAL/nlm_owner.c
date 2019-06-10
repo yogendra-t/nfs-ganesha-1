@@ -1047,6 +1047,10 @@ void free_nlm_client(state_nlm_client_t *client)
 	if (client->slc_nlm_caller_name != NULL)
 		gsh_free(client->slc_nlm_caller_name);
 
+	/* free the callback client */
+	if (client->slc_callback_clnt != NULL)
+		gsh_clnt_destroy(client->slc_callback_clnt);
+
 	gsh_free(client);
 }
 
