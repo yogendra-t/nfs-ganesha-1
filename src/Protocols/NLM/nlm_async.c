@@ -67,6 +67,8 @@ int nlm_send_async_res_nlm4(state_nlm_client_t *host, state_async_func_t func,
 	status = state_async_schedule(arg);
 
 	if (status != STATE_SUCCESS) {
+		netobj_free
+		  (&nlm_arg->nlm_async_args.nlm_async_res.res_nlm4.cookie);
 		gsh_free(arg);
 		return NFS_REQ_DROP;
 	}
