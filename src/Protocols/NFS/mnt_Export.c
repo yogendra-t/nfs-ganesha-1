@@ -239,6 +239,7 @@ void mnt_Export_Free(nfs_res_t *res)
 			gsh_free(grp);
 			grp = next_grp;
 		}
+		gsh_free(exp->ex_dir);
 		gsh_free(exp);
 		exp = next_exp;
 	}
