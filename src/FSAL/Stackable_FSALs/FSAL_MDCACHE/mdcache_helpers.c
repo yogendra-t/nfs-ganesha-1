@@ -3296,8 +3296,6 @@ again:
 		status = entry->obj_handle.obj_ops.getattrs(&entry->obj_handle,
 							    &attrs);
 		if (FSAL_IS_ERROR(status)) {
-			PTHREAD_RWLOCK_unlock(&directory->content_lock);
-
 			LogFullDebugAlt(COMPONENT_NFS_READDIR,
 					COMPONENT_CACHE_INODE,
 					"getattrs failed status=%s",
@@ -3309,6 +3307,9 @@ again:
 				dirent->flags &= ~DIR_ENTRY_REFFED;
 			}
 			mdcache_put(entry);
+
+			PTHREAD_RWLOCK_unlock(&directory->content_lock);
+
 			return status;
 		}
 
