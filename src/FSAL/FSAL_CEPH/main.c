@@ -238,18 +238,20 @@ static int reclaim_reset(struct ceph_export *export)
 		return ceph_status;
 	}
 
-	len = strlen(RECLAIM_UUID_PREFIX) + strlen(nodeid) + 1;
+	len = strlen(RECLAIM_UUID_PREFIX) + strlen(nodeid) + 1 + 4 + 1;
 	uuid = gsh_malloc(len);
-	snprintf(uuid, len, RECLAIM_UUID_PREFIX "%s", nodeid);
+	snprintf(uuid, len, RECLAIM_UUID_PREFIX "%s-%4.4hx", nodeid,
+		 export->export.export_id);
 
 	/* If this fails, log a message but soldier on */
-	ceph_status = ceph_start_reclaim(export->cmount, nodeid,
+	LogDebug(COMPONENT_FSAL, "Issuing reclaim reset for %s", uuid);
+	ceph_status = ceph_start_reclaim(export->cmount, uuid,
 						CEPH_RECLAIM_RESET);
 	if (ceph_status)
 		LogEvent(COMPONENT_FSAL, "start_reclaim failed: %d",
 				ceph_status);
 	ceph_finish_reclaim(export->cmount);
-	ceph_set_uuid(export->cmount, nodeid);
+	ceph_set_uuid(export->cmount, uuid);
 	gsh_free(nodeid);
 	gsh_free(uuid);
 	return 0;

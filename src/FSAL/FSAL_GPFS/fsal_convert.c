@@ -301,7 +301,7 @@ fsal_acl_2_gpfs_acl(struct fsal_obj_handle *dir_hdl, fsal_acl_t *fsal_acl,
 
 	/* GPFS can support max 638 entries */
 	if (fsal_acl->naces > GPFS_ACL_MAX_NACES) {
-		LogCrit(COMPONENT_FSAL,
+		LogInfo(COMPONENT_FSAL,
 			"No. of ACE's:%d higher than supported by GPFS",
 			fsal_acl->naces);
 		return fsalstat(ERR_FSAL_INVAL, 0);

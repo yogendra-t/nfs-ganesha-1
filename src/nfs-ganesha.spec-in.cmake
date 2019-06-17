@@ -265,7 +265,6 @@ BuildRequires:	PyQt4-devel
 Requires:	PyQt4
 %endif
 %endif
-
 Obsoletes: nfs-ganesha-utils < 2.5.3-ibm023.00
 Provides:  nfs-ganesha-utils
 

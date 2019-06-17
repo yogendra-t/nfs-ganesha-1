@@ -597,7 +597,7 @@ fsal_get_xstat_by_handle(int dirfd, struct gpfs_file_handle *gpfs_fh,
 
 	if (use_acl) {
 		if (acl_buf->acl_nace > GPFS_ACL_MAX_NACES) {
-			LogCrit(COMPONENT_FSAL,
+			LogEvent(COMPONENT_FSAL,
 				"No. of ACE's:%d higher than supported by GPFS",
 				acl_buf->acl_nace);
 			/* Fail the request if ACL is invalid*/

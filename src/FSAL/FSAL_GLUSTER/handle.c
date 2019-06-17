@@ -1227,16 +1227,17 @@ static fsal_status_t file_close(struct fsal_obj_handle *obj_hdl)
 
 	assert(obj_hdl->type == REGULAR_FILE);
 
-	if (objhandle->globalfd.openflags == FSAL_O_CLOSED)
-		return fsalstat(ERR_FSAL_NOT_OPENED, 0);
-
 	/* Take write lock on object to protect file descriptor.
 	 * This can block over an I/O operation.
 	 */
 	PTHREAD_RWLOCK_wrlock(&obj_hdl->obj_lock);
 
-	status = glusterfs_close_my_fd(&objhandle->globalfd);
-	objhandle->globalfd.openflags = FSAL_O_CLOSED;
+	if (objhandle->globalfd.openflags == FSAL_O_CLOSED) {
+		status = fsalstat(ERR_FSAL_NOT_OPENED, 0);
+	} else {
+		status = glusterfs_close_my_fd(&objhandle->globalfd);
+		objhandle->globalfd.openflags = FSAL_O_CLOSED;
+	}
 
 	PTHREAD_RWLOCK_unlock(&obj_hdl->obj_lock);
 
@@ -1319,6 +1320,10 @@ fsal_status_t find_fd(struct glusterfs_fd *my_fd,
 				glusterfs_close_func,
 				has_lock, closefd, open_for_locks,
 				&reusing_open_state_fd);
+
+	if (FSAL_IS_ERROR(status))
+		goto out;
+
 	/* since tmp2_fd is not accessed/closed outside
 	* this routine, its safe to copy its variables into my_fd
 	* without taking extra reference or allocating extra
@@ -1345,6 +1350,7 @@ fsal_status_t find_fd(struct glusterfs_fd *my_fd,
 	my_fd->creds.caller_gid = tmp2_fd->creds.caller_gid;
 	my_fd->creds.caller_glen = tmp2_fd->creds.caller_glen;
 
+out:
 	return status;
 }
 
@@ -1659,6 +1665,22 @@ static fsal_status_t glusterfs_open2(struct fsal_obj_handle *obj_hdl,
 			goto direrr;
 		}
 
+		if ((*new_obj)->type != REGULAR_FILE) {
+			if ((*new_obj)->type == DIRECTORY) {
+				/* Trying to open2 a directory */
+				status = fsalstat(ERR_FSAL_ISDIR, 0);
+			} else {
+				/* Trying to open2 any other non-regular file */
+				status = fsalstat(ERR_FSAL_SYMLINK, 0);
+			}
+
+			/* Release the object we found by lookup. */
+			LogFullDebug(COMPONENT_FSAL,
+				     "open2 returning %s",
+				     fsal_err_txt(status));
+			goto direrr;
+		}
+
 		myself = container_of(*new_obj,
 				      struct glusterfs_handle,
 				      handle);
@@ -1711,6 +1733,19 @@ static fsal_status_t glusterfs_open2(struct fsal_obj_handle *obj_hdl,
 	if (glhandle == NULL) {
 		status = gluster2fsal_error(errno);
 		goto out;
+	}
+
+	/* Check if the opened file is not a regular file. */
+	if (posix2fsal_type(sb.st_mode) == DIRECTORY) {
+		/* Trying to open2 a directory */
+		status = fsalstat(ERR_FSAL_ISDIR, 0);
+		goto direrr;
+	}
+
+	if (posix2fsal_type(sb.st_mode) != REGULAR_FILE) {
+		/* Trying to open2 any other non-regular file */
+		status = fsalstat(ERR_FSAL_SYMLINK, 0);
+		goto direrr;
 	}
 
 	/* Remember if we were responsible for creating the file.
@@ -2440,7 +2475,7 @@ static fsal_status_t glusterfs_lock_op2(struct fsal_obj_handle *obj_hdl,
 
 	if (FSAL_IS_ERROR(status)) {
 		LogCrit(COMPONENT_FSAL, "Unable to find fd for lock operation");
-		return status;
+		goto err;
 	}
 
 	errno = 0;
@@ -2525,7 +2560,10 @@ static fsal_status_t glusterfs_lock_op2(struct fsal_obj_handle *obj_hdl,
 	if (has_lock)
 		PTHREAD_RWLOCK_unlock(&obj_hdl->obj_lock);
 
-	return fsalstat(posix2fsal_error(retval), retval);
+	if (retval)
+		status = gluster2fsal_error(retval);
+
+	return status;
 }
 
 /**
