@@ -197,10 +197,6 @@ cache_inode_operate_cached_dirent(cache_entry_t *directory,
 				 * old */
 				cache_entry_t *oldentry;
 
-				cache_inode_key_delete(&dirent2->ckey);
-				cache_inode_key_dup(&dirent2->ckey,
-						    &dirent->ckey);
-				avl_dirent_set_deleted(directory, dirent);
 				oldentry =
 				    cache_inode_get_keyed(
 					    &dirent2->ckey,
@@ -216,6 +212,10 @@ cache_inode_operate_cached_dirent(cache_entry_t *directory,
 					cache_inode_lru_unref(oldentry,
 							      LRU_FLAG_NONE);
 				}
+				cache_inode_key_delete(&dirent2->ckey);
+				cache_inode_key_dup(&dirent2->ckey,
+						    &dirent->ckey);
+				avl_dirent_set_deleted(directory, dirent);
 			} else
 				status = CACHE_INODE_ENTRY_EXISTS;
 		} else {
