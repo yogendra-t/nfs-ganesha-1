@@ -87,6 +87,7 @@ avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
 	struct avltree *t = &entry->object.dir.avl.t;
 	struct avltree_node *node;
+	struct avltree_node *rc;
 
 	assert(!(v->flags & DIR_ENTRY_FLAG_DELETED));
 
@@ -103,7 +104,9 @@ avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
 	cache_inode_key_delete(&v->ckey);
 
 	/* save cookie in deleted avl */
-	avltree_insert(&v->node_hk, &entry->object.dir.avl.c);
+	rc = avltree_insert(&v->node_hk, &entry->object.dir.avl.c);
+	if (rc)
+		LogCrit(COMPONENT_CACHE_INODE, "AVL insert failing");
 }
 
 void
@@ -131,6 +134,7 @@ cache_inode_avl_insert_impl(cache_entry_t *entry,
 			    int j, int j2)
 {
 	int code = -1;
+	cache_inode_dir_entry_t *dirent;
 	struct avltree_node *node;
 	struct avltree *t = &entry->object.dir.avl.t;
 	struct avltree *c = &entry->object.dir.avl.c;
@@ -171,6 +175,10 @@ cache_inode_avl_insert_impl(cache_entry_t *entry,
 
 	if (node) {
 		avltree_remove(node, c);
+		dirent = avltree_container_of(node, cache_inode_dir_entry_t,
+					      node_hk);
+		gsh_free(dirent);
+		(void)atomic_dec_uint64_t(&cache_stp->inode_dirents);
 		node = NULL;
 	}
 	node = avltree_insert(&v->node_hk, t);
