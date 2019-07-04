@@ -1,8 +1,8 @@
-gpfs.nfs-ganesha (2.5.3-ibm036.06) xenial; urgency=medium
+gpfs.nfs-ganesha (2.5.3-ibm036.07) xenial; urgency=medium
 
-  * gpfs.nfs-ganesha 2.5.3-ibm036.06
+  * gpfs.nfs-ganesha 2.5.3-ibm036.07
 
- -- Malahal Naineni <malahal@us.ibm.com>  Tue, 02 Jul 2019 17:24:26 +0530
+ -- Malahal Naineni <malahal@us.ibm.com>  Thu, 04 Jul 2019 13:43:59 +0530
 
 nfs-ganesha (2.5.0-ibm007) xenial; urgency=medium
 
