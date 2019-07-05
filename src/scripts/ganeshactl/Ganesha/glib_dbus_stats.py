@@ -325,7 +325,7 @@ class ExportIOv3Stats():
             if self.stats[key][1] != "OK":
                 output += self.stats[key][1] + "\n"
             output += ( "\nEXPORT %s:" % (key) +
-                        "\n\t\trequested\ttransferred\t     total\t    errors\t   latency\tqueue wait" +
+                        "\n\t\trequested\ttransferred\t     total\t    errors\t   latency" +
                         "\nREADv3: " )
             for stat in self.stats[key][3]:
                 output += "\t" + str(stat).rjust(8)
@@ -346,7 +346,7 @@ class ExportIOv4Stats():
             if self.stats[key][1] != "OK":
                 output += self.stats[key][1] + "\n"
             output += ("EXPORT %s:" % (key) +
-                       "\n\t\trequested\ttransferred\t     total\t    errors\t   latency\tqueue wait" +
+                       "\n\t\trequested\ttransferred\t     total\t    errors\t   latency" +
                        "\nREADv4: ")
             for stat in self.stats[key][3]:
                 output += "\t" + str(stat).rjust(8)
