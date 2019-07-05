@@ -141,7 +141,7 @@ static const struct op_name optabv3[] = {
 	[NFSPROC3_READDIR] = {.name = "READDIR", },
 	[NFSPROC3_READDIRPLUS] = {.name = "READDIRPLUS", },
 	[NFSPROC3_FSSTAT] = {.name = "FSSTAT", },
-	[NFSPROC3_FSINFO] = {.name = "FSINFO	", },
+	[NFSPROC3_FSINFO] = {.name = "FSINFO", },
 	[NFSPROC3_PATHCONF] = {.name = "PATHCONF", },
 	[NFSPROC3_COMMIT] = {.name = "COMMIT", },
 };
@@ -2131,18 +2131,6 @@ void server_dbus_v3_full_stats(DBusMessageIter *iter)
 			res = (double) v3_full_stats[op].latency.max * 0.000001;
 			dbus_message_iter_append_basic(&array_iter,
 				DBUS_TYPE_DOUBLE, &res);
-			res = (double) v3_full_stats[op].queue_latency.latency /
-					v3_full_stats[op].total * 0.000001;
-			dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
-			res = (double) v3_full_stats[op].queue_latency.min *
-					0.000001;
-			dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
-			res = (double) v3_full_stats[op].queue_latency.max *
-					0.000001;
-			dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
 			op_counter += v3_full_stats[op].total;
 		}
 	}
@@ -2157,12 +2145,6 @@ void server_dbus_v3_full_stats(DBusMessageIter *iter)
 				DBUS_TYPE_UINT64, &op_counter);
 		dbus_message_iter_append_basic(&array_iter,
 				DBUS_TYPE_UINT64, &op_counter);
-		dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
-		dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
-		dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
 		dbus_message_iter_append_basic(&array_iter,
 				DBUS_TYPE_DOUBLE, &res);
 		dbus_message_iter_append_basic(&array_iter,
@@ -2210,18 +2192,6 @@ void server_dbus_v4_full_stats(DBusMessageIter *iter)
 			res = (double) v4_full_stats[op].latency.max * 0.000001;
 			dbus_message_iter_append_basic(&array_iter,
 				DBUS_TYPE_DOUBLE, &res);
-			res = (double) v4_full_stats[op].queue_latency.latency /
-					v4_full_stats[op].total * 0.000001;
-			dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
-			res = (double) v4_full_stats[op].queue_latency.min *
-					0.000001;
-			dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
-			res = (double) v4_full_stats[op].queue_latency.max *
-					0.000001;
-			dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
 			op_counter += v4_full_stats[op].total;
 		}
 	}
@@ -2234,12 +2204,6 @@ void server_dbus_v4_full_stats(DBusMessageIter *iter)
 				DBUS_TYPE_UINT64, &op_counter);
 		dbus_message_iter_append_basic(&array_iter,
 				DBUS_TYPE_UINT64, &op_counter);
-		dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
-		dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
-		dbus_message_iter_append_basic(&array_iter,
-				DBUS_TYPE_DOUBLE, &res);
 		dbus_message_iter_append_basic(&array_iter,
 				DBUS_TYPE_DOUBLE, &res);
 		dbus_message_iter_append_basic(&array_iter,
