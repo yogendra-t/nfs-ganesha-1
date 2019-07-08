@@ -405,6 +405,7 @@ typedef struct nfs_core_param {
 	/** Whether to use Pseudo (true) or Path (false) for NFS v3 and 9P
 	    mounts. */
 	bool mount_path_pseudo;
+	bool enable_trim; /* Enable malloc trim */
 } nfs_core_parameter_t;
 
 /** @} */

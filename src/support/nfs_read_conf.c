@@ -198,6 +198,8 @@ static struct config_item core_params[] = {
 		       nfs_core_param, fsid_device),
 	CONF_ITEM_BOOL("mount_path_pseudo", false,
 		       nfs_core_param, mount_path_pseudo),
+	CONF_ITEM_BOOL("enable_trim", false,
+		       nfs_core_param, enable_trim),
 	CONFIG_EOL
 };
 
