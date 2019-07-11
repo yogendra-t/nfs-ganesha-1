@@ -41,6 +41,9 @@ Detached_Mult(uint32, range 1 to UINT32_MAX, default 1)
 Entries_HWMark(uint32, range 1 to UINT32_MAX, default 100000)
     The point at which object cache entries will start being reused.
 
+Chunks_HWMark(uint32, range 1 to UINT32_MAX, default 100000)
+    The point at which dirent cache chunks will start being reused.
+
 LRU_Run_Interval(uint32, range 1 to 24 * 3600, default 90)
     Base interval in seconds between runs of the LRU cleaner thread.
 
@@ -76,6 +79,11 @@ Required_Progress(uint32, range 1 to 50, default 5)
 Futility_Count(uint32, range 1 to 50, default 8)
     Number of failures to approach the high watermark before we disable caching,
     when in extremis.
+
+Dirmap_HWMark(uint32, range 1 to UINT32_MAX, default 10000)
+    The point at which dirmap entries are reused.  This puts a practical limit
+    on the number of simultaneous readdirs that may be in progress on an export
+    for a whence-is-name FSAL (currently only FSAL_RGW)
 
 See also
 ==============================
