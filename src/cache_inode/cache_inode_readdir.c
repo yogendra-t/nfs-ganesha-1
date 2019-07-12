@@ -435,9 +435,11 @@ populate_dirent(const char *name, void *dir_state,
 
 	if (cache_entry->type == DIRECTORY) {
 		/* Insert Parent's key */
+		PTHREAD_RWLOCK_wrlock(&cache_entry->content_lock);
 		cache_inode_key_delete(&cache_entry->object.dir.parent);
 		cache_inode_key_dup(&cache_entry->object.dir.parent,
 				    &state->directory->fh_hk.key);
+		PTHREAD_RWLOCK_unlock(&cache_entry->content_lock);
 	}
 
 	*state->status =
