@@ -306,6 +306,18 @@ class AdminInterface():
         msg = reply[1]
         return status, msg
 
+    def mallopt(self, param, value):
+        method = self.dbusobj.get_dbus_method("mallopt",
+                                              self.dbus_interface)
+        try:
+           reply = method(param, value)
+        except dbus.exceptions.DBusException as e:
+           return False, e
+
+        status = reply[0]
+        msg = reply[1]
+        return status, msg
+
 LOGGER_PROPS = 'org.ganesha.nfsd.log.component'
 
 class LogManager():

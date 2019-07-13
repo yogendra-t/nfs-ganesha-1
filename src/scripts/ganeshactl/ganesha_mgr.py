@@ -178,6 +178,10 @@ class ServerAdmin():
         status, msg = self.admin.trim_status()
         self.status_message(status, msg)
 
+    def mallopt(self, param, value):
+        status, msg = self.admin.mallopt(param, value)
+        self.status_message(status, msg)
+
     def status_message(self, status, errormsg):
         print "Returns: status = %s, %s" % (str(status), errormsg)
 
@@ -248,6 +252,7 @@ if __name__ == '__main__':
        "   trim disable: Disable malloc trim\n\n"                            \
        "   trim call: Call malloc trim\n\n"                            \
        "   trim status: Get current malloc trim status\n\n"                  \
+       "   mallopt param value: call mallopt with given param, value \n\n"   \
        "   get_log component: Gets the log level for the given component\n\n"\
        "   set_log component level: \n"                                      \
        "       Sets the given log level to the given component\n\n"          \
@@ -329,6 +334,17 @@ if __name__ == '__main__':
         else:
             msg = "trim '%s' is unknown" % sys.argv[2]
             sys.exit(msg)
+
+    elif sys.argv[1] == "mallopt":
+        if len(sys.argv) < 4:
+            sys.exit("mallopt requires param and value args. "
+                  "Try 'ganesha_mgr.py help' for more info")
+        param = sys.argv[2]
+        try:
+            value = int(sys.argv[3], 0)
+        except ValueError:
+            sys.exit("Value error for int: %s" % sys.argv[3])
+        ganesha.mallopt(param, value)
 
     elif sys.argv[1] == "set_log":
         if len(sys.argv) < 4:

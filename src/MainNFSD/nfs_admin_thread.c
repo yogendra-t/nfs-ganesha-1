@@ -433,6 +433,87 @@ static struct gsh_dbus_method method_trim_status = {
 		 END_ARG_LIST}
 };
 
+static int my_mallopt(char *param, int value)
+{
+	int rc = 0;
+
+	if (strcmp(param, "M_MMAP_MAX") == 0) {
+		rc = mallopt(M_MMAP_MAX, value);
+	} else if (strcmp(param, "M_ARENA_MAX") == 0) {
+		rc = mallopt(M_ARENA_MAX, value);
+	} else if (strcmp(param, "M_MMAP_THRESHOLD") == 0) {
+		rc = mallopt(M_MMAP_THRESHOLD, value);
+	} else if (strcmp(param, "M_TRIM_THRESHOLD") == 0) {
+		rc = mallopt(M_TRIM_THRESHOLD, value);
+	}
+	return rc;
+}
+
+/**
+ * @brief Dbus method for mallopt settings
+ *
+ * @param[in]  args
+ * @param[out] reply
+ */
+static bool admin_dbus_mallopt(DBusMessageIter *args,
+			       DBusMessage *reply,
+			       DBusError *error)
+{
+	DBusMessageIter iter;
+	char *errormsg = "mallopt success";
+	bool success = true;
+	char *param = NULL;
+	int32_t value;
+	int rc;
+
+	if (args == NULL ||
+	    dbus_message_iter_get_arg_type(args) != DBUS_TYPE_STRING) {
+		errormsg = "arg1 not present or not a string.";
+		success = false;
+		goto out;
+	}
+
+	dbus_message_iter_get_basic(args, &param);
+
+	if (!dbus_message_iter_next(args) ||
+	    dbus_message_iter_get_arg_type(args) != DBUS_TYPE_INT32) {
+		errormsg = "arg2 is not present or not an int.";
+		success = false;
+		goto out;
+	}
+
+	dbus_message_iter_get_basic(args, &value);
+	rc = my_mallopt(param, value);
+	if (rc == 0) {
+		errormsg = "mallopt failed";
+		success = false;
+		goto out;
+	}
+
+	LogEvent(COMPONENT_MEMLEAKS,
+		 "mallopt called with %s %d", param, value);
+
+out:
+	dbus_message_iter_init_append(reply, &iter);
+	dbus_status_reply(&iter, success, errormsg);
+	return success;
+}
+
+static struct gsh_dbus_method method_mallopt = {
+	.name = "mallopt",
+	.method = admin_dbus_mallopt,
+	.args = { { .name = "param",
+		    .type = "s",
+		    .direction = "in"
+		  },
+		  { .name = "value",
+		    .type = "i",
+		    .direction = "in"
+		  },
+		STATUS_REPLY,
+		END_ARG_LIST}
+};
+
 static struct gsh_dbus_method *admin_methods[] = {
 	&method_shutdown,
 	&method_grace_period,
@@ -443,6 +524,7 @@ static struct gsh_dbus_method *admin_methods[] = {
 	&method_trim_disable,
 	&method_trim_call,
 	&method_trim_status,
+	&method_mallopt,
 	NULL
 };
 
