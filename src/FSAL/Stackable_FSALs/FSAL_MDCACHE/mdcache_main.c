@@ -368,17 +368,21 @@ fsal_status_t mdcache_pkginit(void)
  */
 bool mdcache_lru_fds_available(void)
 {
-	if ((atomic_fetch_size_t(&open_fd_count) >= lru_state.fds_hard_limit)
+	size_t open_fds = atomic_fetch_size_t(&open_fd_count);
+
+	if ((open_fds >= lru_state.fds_hard_limit)
 		&& lru_state.caching_fds) {
 		LogCrit(COMPONENT_CACHE_INODE_LRU,
-			"FD Hard Limit Exceeded.  Disabling FD Cache and waking LRU thread.");
+			"FD Hard Limit Exceeded (open_fd_count: %zu, fds_hard_limit: %u), Disabling FD Cache and waking LRU thread.",
+			open_fds, lru_state.fds_hard_limit);
 		lru_state.caching_fds = false;
 		lru_wake_thread();
 		return false;
 	}
-	if (atomic_fetch_size_t(&open_fd_count) >= lru_state.fds_hiwat) {
+	if (open_fds >= lru_state.fds_hiwat) {
 		LogInfo(COMPONENT_CACHE_INODE_LRU,
-			"FDs above high water mark, waking LRU thread.");
+			"FDs above high water mark (open_fd_count: %zu, fds_hard_limit: %u), waking LRU thread.",
+			open_fds, lru_state.fds_hard_limit);
 		lru_wake_thread();
 	}
 

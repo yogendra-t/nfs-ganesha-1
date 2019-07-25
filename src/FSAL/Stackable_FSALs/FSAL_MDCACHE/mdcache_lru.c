@@ -1369,7 +1369,8 @@ lru_run(struct fridgethr_context *ctx)
 			if (++lru_state.futility >
 			    mdcache_param.futility_count) {
 				LogCrit(COMPONENT_CACHE_INODE_LRU,
-					"Futility count exceeded.  The LRU thread is unable to make progress in reclaiming FDs.  Disabling FD cache.");
+					"Futility count exceeded.  Client load is opening FDs faster than the LRU thread can close them. current_open = %zu, former_open = %zu",
+					currentopen, formeropen);
 				lru_state.caching_fds = false;
 			}
 		}
