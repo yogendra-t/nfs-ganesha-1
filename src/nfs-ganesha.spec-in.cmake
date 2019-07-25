@@ -198,9 +198,6 @@ BuildRequires: python-sphinx
 Requires(post): psmisc
 Requires(pre): /usr/sbin/useradd
 
-%if ( 0%{?fedora} >= 30 || 0%{?rhel} >= 8 )
-Requires: nfs-ganesha-selinux = %{version}-%{release}
-%endif
 Obsoletes: nfs-ganesha < 2.5.3-ibm023.00
 Provides:  nfs-ganesha = %{version}-%{release}
 
