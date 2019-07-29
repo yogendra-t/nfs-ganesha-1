@@ -1294,9 +1294,9 @@ static bool nfs_rpc_cond_stall_xprt(SVCXPRT *xprt)
 
 	sprint_sockip((sockaddr_t *)svc_getrpccaller(xprt), ipaddr_str,
 		      sizeof(ipaddr_str));
-	LogDebug(COMPONENT_DISPATCH,
-		 "xprt %p (caller ip: %s) has %u reqs, marking stalled",
-		 xprt, ipaddr_str, nreqs);
+	LogEventLimited(COMPONENT_DISPATCH,
+			"xprt %p (caller ip: %s) has %u reqs, marking stalled",
+			xprt, ipaddr_str, nreqs);
 
 	/* ok, need to stall */
 	PTHREAD_MUTEX_lock(&nfs_req_st.stallq.mtx);
