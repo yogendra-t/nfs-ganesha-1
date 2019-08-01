@@ -717,14 +717,14 @@ bool principal2uid(char *principal, uid_t *uid, gid_t *gid)
 				    wbcAuthenticateUserEx(&params, &info,
 							  &error);
 				if (!WBC_ERROR_IS_OK(wbc_err)) {
-					LogCrit(COMPONENT_IDMAPPER,
+					LogInfo(COMPONENT_IDMAPPER,
 						"wbcAuthenticateUserEx returned %s",
 						wbcErrorString(wbc_err));
 					return false;
 				}
 
 				if (error) {
-					LogCrit(COMPONENT_IDMAPPER,
+					LogInfo(COMPONENT_IDMAPPER,
 						"nt_status: %s, display_string %s",
 						error->nt_string,
 						error->display_string);
@@ -736,7 +736,7 @@ bool principal2uid(char *principal, uid_t *uid, gid_t *gid)
 				wbc_err =
 				    wbcSidToUid(&info->sids[0].sid, &gss_uid);
 				if (!WBC_ERROR_IS_OK(wbc_err)) {
-					LogCrit(COMPONENT_IDMAPPER,
+					LogInfo(COMPONENT_IDMAPPER,
 						"wbcSidToUid for uid returned %s",
 						wbcErrorString(wbc_err));
 					wbcFreeMemory(info);
@@ -748,8 +748,8 @@ bool principal2uid(char *principal, uid_t *uid, gid_t *gid)
 				wbc_err =
 				    wbcSidToGid(&info->sids[1].sid, &gss_gid);
 				if (!WBC_ERROR_IS_OK(wbc_err)) {
-					LogCrit(COMPONENT_IDMAPPER,
-						"wbcSidToUid for gid returned %s\n",
+					LogInfo(COMPONENT_IDMAPPER,
+						"wbcSidToGid for gid returned %s\n",
 						wbcErrorString(wbc_err));
 					wbcFreeMemory(info);
 					return false;
