@@ -577,8 +577,8 @@ nfs_dupreq_get_drc(struct svc_req *req)
 		LogFullDebug(COMPONENT_DUPREQ, "ref shared UDP DRC");
 		drc = &(drc_st->udp_drc);
 		DRC_ST_LOCK();
+		/* we use shared UDP DRC without refcnt */
 		req->rq_xprt->xp_u2 = (void *)drc;
-		(void)nfs_dupreq_ref_drc(drc);
 		DRC_ST_UNLOCK();
 		goto out;
 retry:
@@ -719,11 +719,15 @@ out:
  * @param[in] drc   The DRC
  * @param[in] flags Control flags
  */
-void nfs_dupreq_put_drc(drc_t *drc, uint32_t flags)
+void nfs_dupreq_put_drc(drc_t *drc)
 {
-	if (!(flags & DRC_FLAG_LOCKED))
-		PTHREAD_MUTEX_lock(&drc->mtx);
-	/* drc LOCKED */
+	PTHREAD_MUTEX_lock(&drc->mtx);
+
+	/* refcnt is not used on shared UDP DRC, so nothing to do */
+	if (drc->type == DRC_UDP_V234)
+		goto unlock;
+
+	assert(drc->type == DRC_TCP_V3 || drc->type == DRC_TCP_V4);
 
 	if (drc->refcnt == 0) {
 		LogCrit(COMPONENT_DUPREQ,
@@ -735,44 +739,34 @@ void nfs_dupreq_put_drc(drc_t *drc, uint32_t flags)
 
 	LogFullDebug(COMPONENT_DUPREQ, "drc %p refcnt==%u", drc, drc->refcnt);
 
-	switch (drc->type) {
-	case DRC_UDP_V234:
-		/* do nothing */
-		break;
-	case DRC_TCP_V4:
-	case DRC_TCP_V3:
-		if (drc->refcnt != 0) /* quick path */
-			break;
+	if (drc->refcnt != 0) /* quick path */
+		goto unlock;
 
-		/* note t's lock order wrt drc->mtx is the opposite of
-		 * drc->xt[*].lock. Drop and reacquire locks in correct
-		 * order.
-		 */
-		PTHREAD_MUTEX_unlock(&drc->mtx);
-		DRC_ST_LOCK();
-		PTHREAD_MUTEX_lock(&drc->mtx);
+	/* note t's lock order wrt drc->mtx is the opposite of
+	 * drc->xt[*].lock. Drop and reacquire locks in correct
+	 * order.
+	 */
+	PTHREAD_MUTEX_unlock(&drc->mtx);
+	DRC_ST_LOCK();
+	PTHREAD_MUTEX_lock(&drc->mtx);
 
-		/* Since we dropped and reacquired the drc lock for the
-		 * correct lock order, we need to recheck the drc fields
-		 * again!
-		 */
-		if (drc->refcnt == 0 && !(drc->flags & DRC_FLAG_RECYCLE)) {
-			drc->d_u.tcp.recycle_time = time(NULL);
-			drc->flags |= DRC_FLAG_RECYCLE;
-			TAILQ_INSERT_TAIL(&drc_st->tcp_drc_recycle_q,
-					  drc, d_u.tcp.recycle_q);
-			++(drc_st->tcp_drc_recycle_qlen);
-			LogFullDebug(COMPONENT_DUPREQ,
-				     "enqueue drc %p for recycle", drc);
-		}
-		DRC_ST_UNLOCK();
-		break;
+	/* Since we dropped and reacquired the drc lock for the
+	 * correct lock order, we need to recheck the drc fields
+	 * again!
+	 */
+	if (drc->refcnt == 0 && !(drc->flags & DRC_FLAG_RECYCLE)) {
+		drc->d_u.tcp.recycle_time = time(NULL);
+		drc->flags |= DRC_FLAG_RECYCLE;
+		TAILQ_INSERT_TAIL(&drc_st->tcp_drc_recycle_q,
+				  drc, d_u.tcp.recycle_q);
+		++(drc_st->tcp_drc_recycle_qlen);
+		LogFullDebug(COMPONENT_DUPREQ,
+			     "enqueue drc %p for recycle", drc);
+	}
+	DRC_ST_UNLOCK();
 
-	default:
-		break;
-	};
-
-	PTHREAD_MUTEX_unlock(&drc->mtx); /* !LOCKED */
+unlock:
+	PTHREAD_MUTEX_unlock(&drc->mtx);
 }
 
 /**
@@ -1058,7 +1052,7 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs,
 	case DRC_UDP_V234:
 		dk->hin.tcp.rq_xid = req->rq_msg.rm_xid;
 		if (unlikely(!copy_xprt_addr(&dk->hin.addr, req->rq_xprt))) {
-			nfs_dupreq_put_drc(drc, DRC_FLAG_NONE);
+			nfs_dupreq_put_drc(drc);
 			nfs_dupreq_free_dupreq(dk);
 			return DUPREQ_INSERT_MALLOC_ERROR;
 		}
@@ -1068,7 +1062,7 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs,
 		break;
 	default:
 		/* @todo: should this be an assert? */
-		nfs_dupreq_put_drc(drc, DRC_FLAG_NONE);
+		nfs_dupreq_put_drc(drc);
 		nfs_dupreq_free_dupreq(dk);
 		return DUPREQ_INSERT_MALLOC_ERROR;
 	}
@@ -1380,7 +1374,7 @@ void nfs_dupreq_rele(struct svc_req *req, const nfs_function_desc_t *func)
 
 	/* release req's hold on dupreq and drc */
 	dupreq_entry_put(dv);
-	nfs_dupreq_put_drc(drc, DRC_FLAG_NONE);
+	nfs_dupreq_put_drc(drc);
 
  out:
 	/* dispose RPC header */
