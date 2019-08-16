@@ -322,7 +322,6 @@ struct proto_op {
 	uint64_t dups;		/* detected dup requests */
 	struct op_latency latency;	/* either executed ops latency */
 	struct op_latency dup_latency;	/* or latency (runtime) to replay */
-	struct op_latency queue_latency;	/* queue wait time */
 };
 
 /* basic I/O transfer counter
@@ -1524,7 +1523,6 @@ static void server_dbus_op_stats(struct proto_op *op, DBusMessageIter *iter)
  *       uint64_t total_ops;
  *       uint64_t errors;
  *       uint64_t latency;
- *       uint64_t queue_wait;
  * }
  *
  * @param iop   [IN] pointer to xfer op sub-structure of interest
@@ -1547,8 +1545,6 @@ static void server_dbus_iostats(struct xfer_op *iop, DBusMessageIter *iter)
 				       &iop->cmd.errors);
 	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
 				       &iop->cmd.latency.latency);
-	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
-				       &iop->cmd.queue_latency.latency);
 	dbus_message_iter_close_container(iter, &struct_iter);
 }
 
@@ -1805,13 +1801,13 @@ void server_dbus_fill_io(DBusMessageIter *array_iter, uint16_t *export_id,
 /**
  * @brief Return all IO stats of an export
  *
- * @reply DBUS_TYPE_ARRAY, "qs(tttttt)(tttttt)"
+ * @reply DBUS_TYPE_ARRAY, "qs(ttttt)(ttttt)"
  *	export id
  *	string containing the protocol version
  *	read statistics structure
- *		(requested, transferred, total, errors, latency, queue wait)
+ *		(requested, transferred, total, errors, latency)
  *	write statistics structure
- *		(requested, transferred, total, errors, latency, queue wait)
+ *		(requested, transferred, total, errors, latency)
  */
 
 void server_dbus_all_iostats(struct export_stats *export_statistics,

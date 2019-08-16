@@ -337,7 +337,7 @@ class ExportIOv3Stats():
         output = ""
         for key in self.stats:
             if not self.stats[key][0]:
-                output += "EXPORT %s: %s\n" % (key, self.stats[key][1])
+                output += "\nEXPORT %s: %s\n" % (key, self.stats[key][1])
                 continue
             if self.stats[key][1] != "OK":
                 output += self.stats[key][1] + "\n"
@@ -388,7 +388,7 @@ class TotalStats():
                     "\nDuration: " + "%.10f" % self.duration + " seconds " )
         for key in self.stats:
             if not self.stats[key][0]:
-                return "No NFS activity, GANESHA RESPONSE STATUS: " + self.stats[key][1]
+                return "\nNo NFS activity, GANESHA RESPONSE STATUS: " + self.stats[key][1]
             if self.stats[key][1] != "OK":
                 output += self.stats[key][1] + "\n"
             output += "\nExport id: " + str(key)
