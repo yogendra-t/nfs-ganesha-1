@@ -110,12 +110,12 @@ GPFSFSAL_lookup(const struct req_op_context *op_ctx,
 
 		pinode = get_handle2inode(parent_hdl->handle);
 		if (pinode == GPFS_ROOT_INODE) {
-			LogEvent(COMPONENT_FSAL,
+			LogEventLimited(COMPONENT_FSAL,
 				 "Lookup of DOTDOT failed in ROOT dir");
 			*fh = *parent_hdl->handle;
 			status = fsalstat(ERR_FSAL_NO_ERROR, 0);
 		} else {
-			LogEvent(COMPONENT_FSAL,
+			LogEventLimited(COMPONENT_FSAL,
 				 "Lookup of DOTDOT failed in dirinode: %llu",
 				 pinode);
 		}
