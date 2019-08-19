@@ -188,7 +188,7 @@ class Clients():
         return output
 class DelegStats():
     def __init__(self, stats):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.status = stats[1]
         if stats[1] == "OK":
             self.timestamp = (stats[2][0], stats[2][1])
@@ -199,11 +199,11 @@ class DelegStats():
     def __str__(self):
         if self.status != "OK":
             return ("GANESHA RESPONSE STATUS: " + self.status)
-	self.starttime = self.timestamp[0] + self.timestamp[1] / 1e9
-	self.duration = self.curtime - self.starttime
+        self.starttime = self.timestamp[0] + self.timestamp[1] / 1e9
+        self.duration = self.curtime - self.starttime
         return ("GANESHA RESPONSE STATUS: " + self.status +
-        	"\nStats collected since: " + time.ctime(self.timestamp[0]) + str(self.timestamp[1]) + " nsecs \n" +
-		"\nDuration: " + "%.10f" % self.duration + " seconds" +
+                "\nStats collected since: " + time.ctime(self.timestamp[0]) + str(self.timestamp[1]) + " nsecs \n" +
+                "\nDuration: " + "%.10f" % self.duration + " seconds" +
                 "\nCurrent Delegations: " + str(self.curr_deleg) +
                 "\nCurrent Recalls: " + str(self.curr_recall) +
                 "\nCurrent Failed Recalls: " + str(self.fail_recall) +
@@ -234,18 +234,18 @@ class Export():
                 "\n\t9p stats available: " + str(self._9p_stats_avail) + "\n")
 class ExportStats():
     def __init__(self, exports):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.timestamp = (exports[0][0], exports[0][1])
         self.exports = {}
         for export in exports[1]:
             exportid = export[0]
             self.exports[exportid] = Export(export)
     def __str__(self):
-	self.starttime = self.timestamp[0] + self.timestamp[1] / 1e9
-	self.duration = self.curtime - self.starttime
+        self.starttime = self.timestamp[0] + self.timestamp[1] / 1e9
+        self.duration = self.curtime - self.starttime
         output = ( "Export Stats \n" +
-		   "Stats collected since: " + time.ctime(self.timestamp[0]) + str(self.timestamp[1]) + " nsecs" +
-		   "\nDuration: " + "%.10f" % self.duration + " seconds" )
+                   "Stats collected since: " + time.ctime(self.timestamp[0]) + str(self.timestamp[1]) + " nsecs" +
+                   "\nDuration: " + "%.10f" % self.duration + " seconds" )
         for exportid in self.exports:
             output += str(self.exports[exportid])
         return output
@@ -254,7 +254,7 @@ class ExportStats():
 
 class GlobalStats():
     def __init__(self, stats):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.success = stats[0]
         self.status = stats[1]
         if self.success:
@@ -294,7 +294,7 @@ class InodeStats():
         if self.status != "OK":
             return "No NFS activity, GANESHA RESPONSE STATUS: " + self.status
         return ( "Inode Cache statistics \n" +
-		 "Stats collected since: " + time.ctime(self.timestamp[0]) + str(self.timestamp[1]) + " nsecs" +
+                 "Stats collected since: " + time.ctime(self.timestamp[0]) + str(self.timestamp[1]) + " nsecs" +
                  "\n  Cache Requests: " + str(self.cache_requests) +
                  "\n  Cache Hits: " + str(self.cache_hits) +
                  "\n  Cache Misses: " + str(self.cache_miss) +
@@ -304,7 +304,7 @@ class InodeStats():
 
 class FastStats():
     def __init__(self, stats):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.stats = stats
     def __str__(self):
         if not self.stats[0]:
@@ -314,12 +314,12 @@ class FastStats():
                 output = self.stats[1]+ "\n"
             else:
                 output = ""
-	    self.starttime = self.stats[2][0] + self.stats[2][1] / 1e9
-	    self.duration = self.curtime - self.starttime
+            self.starttime = self.stats[2][0] + self.stats[2][1] / 1e9
+            self.duration = self.curtime - self.starttime
             output += ( "Fast stats" +
-			"\nStats collected since: " + time.ctime(self.stats[2][0]) + str(self.stats[2][1]) + " nsecs" +
-			"\nDuration: " + "%.10f" % self.duration + " seconds" +
-			"\nGlobal ops:\n" )
+                        "\nStats collected since: " + time.ctime(self.stats[2][0]) + str(self.stats[2][1]) + " nsecs" +
+                        "\nDuration: " + "%.10f" % self.duration + " seconds" +
+                        "\nGlobal ops:\n" )
             # NFSv3, NFSv4, NLM, MNT, QUOTA self.stats
             for i in range(0,len(self.stats[3])-1):
                 if ":" in str(self.stats[3][i]):
@@ -337,7 +337,7 @@ class ExportIOv3Stats():
         output = ""
         for key in self.stats:
             if not self.stats[key][0]:
-                output += "EXPORT %s: %s\n" % (key, self.stats[key][1])
+                output += "\nEXPORT %s: %s\n" % (key, self.stats[key][1])
                 continue
             if self.stats[key][1] != "OK":
                 output += self.stats[key][1] + "\n"
@@ -375,20 +375,20 @@ class ExportIOv4Stats():
 
 class TotalStats():
     def __init__(self, stats):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.stats = stats
     def __str__(self):
         output = ""
-	key = next(iter(self.stats))
-	self.starttime = self.stats[key][2][0] + self.stats[key][2][1] / 1e9
-	self.duration = self.curtime - self.starttime
-	output += ( "Total stats for export(s) \n" + 
-		    "Stats collected since: " + time.ctime(self.stats[key][2][0]) +
+        key = next(iter(self.stats))
+        self.starttime = self.stats[key][2][0] + self.stats[key][2][1] / 1e9
+        self.duration = self.curtime - self.starttime
+        output += ( "Total stats for export(s) \n" +
+                    "Stats collected since: " + time.ctime(self.stats[key][2][0]) +
                     str(self.stats[key][2][1]) + " nsecs" +
-		    "\nDuration: " + "%.10f" % self.duration + " seconds " )
+                    "\nDuration: " + "%.10f" % self.duration + " seconds " )
         for key in self.stats:
             if not self.stats[key][0]:
-                return "No NFS activity, GANESHA RESPONSE STATUS: " + self.stats[key][1]
+                return "\nNo NFS activity, GANESHA RESPONSE STATUS: " + self.stats[key][1]
             if self.stats[key][1] != "OK":
                 output += self.stats[key][1] + "\n"
             output += "\nExport id: " + str(key)
@@ -398,19 +398,19 @@ class TotalStats():
 
 class PNFSStats():
     def __init__(self, stats):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.stats = stats
     def __str__(self):
         output = "PNFS stats for export(s)"
         for key in self.stats:
             if self.stats[key][1] != "OK":
                 return "No NFS activity, GANESHA RESPONSE STATUS: \n" + self.stats[key][1]
-	    self.starttime = self.stats[key][2][0] + self.stats[key][2][1] / 1e9
-	    self.duration = self.curtime - self.starttime
-	    output += ( "\nStats collected since: " + time.ctime(self.stats[key][2][0]) + str(self.stats[key][2][1]) + " nsecs" +
-			"\nDuration: " + "%.10f" % self.duration + " seconds\n" )
-	    output += "\nStatistics for:" + str(exports[1]) +" export id: "+ str(key)
-	    output += "\n\t\ttotal\terrors\tdelays" + "getdevinfo "
+            self.starttime = self.stats[key][2][0] + self.stats[key][2][1] / 1e9
+            self.duration = self.curtime - self.starttime
+            output += ( "\nStats collected since: " + time.ctime(self.stats[key][2][0]) + str(self.stats[key][2][1]) + " nsecs" +
+                        "\nDuration: " + "%.10f" % self.duration + " seconds\n" )
+            output += "\nStatistics for:" + str(exports[1]) +" export id: "+ str(key)
+            output += "\n\t\ttotal\terrors\tdelays" + "getdevinfo "
             for stat in self.stats[key][3]:
                 output += "\t" + stat
             output += "layout_get "
@@ -474,7 +474,7 @@ class StatsStatus():
 
 class DumpFSALStats():
     def __init__(self, stats):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.stats = stats
     def __str__(self):
         output = ""
@@ -485,11 +485,11 @@ class DumpFSALStats():
                 if self.stats[5] != "OK":
                     output += "No stats available for display"
                     return output
-	    	self.starttime = self.stats[2][0] + self.stats[2][1] / 1e9
-	    	self.duration = self.curtime - self.starttime
+                self.starttime = self.stats[2][0] + self.stats[2][1] / 1e9
+                self.duration = self.curtime - self.starttime
                 output += "FSAL stats for - GPFS \n"
                 output += "Stats collected since: " + time.ctime(self.stats[2][0]) + str(self.stats[2][1]) + " nsecs\n"
-	    	output += "Duration: " + "%.10f" % self.duration + " seconds\n"
+                output += "Duration: " + "%.10f" % self.duration + " seconds\n"
                 tot_len = len(self.stats[4])
                 output += "FSAL Stats (response time in milliseconds): \n"
                 output += "\tOp-Name         Total     Res:Avg         Min           Max"
@@ -523,7 +523,7 @@ class StatsDisable():
 
 class DumpAuth():
     def __init__(self, stats):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.success = stats[0]
         self.status = stats[1]
         if self.success:
@@ -542,11 +542,11 @@ class DumpAuth():
             return "No auth activity, GANESHA RESPONSE STATUS: " + self.status
         if self.status != "OK":
             output += self.status + "\n"
-	self.starttime = self.timestamp[0] + self.timestamp[1] / 1e9
-	self.duration = self.curtime - self.starttime
+        self.starttime = self.timestamp[0] + self.timestamp[1] / 1e9
+        self.duration = self.curtime - self.starttime
         output += ("Authentication related stats" +
-		   "\nStats collected since: " + time.ctime(self.timestamp[0]) + str(self.timestamp[1]) + " nsecs"+
-		   "\nDuration: " + "%.10f" % self.duration + " seconds\n" +
+                   "\nStats collected since: " + time.ctime(self.timestamp[0]) + str(self.timestamp[1]) + " nsecs"+
+                   "\nDuration: " + "%.10f" % self.duration + " seconds\n" +
                    "\n\nGroup Cache" +
                    "\n\tTotal ops: " + str(self.gctotal) +
                    "\n\tAve Latency: " + str(self.gclatency) +
@@ -562,7 +562,7 @@ class DumpAuth():
 
 class DumpFULLV3Stats():
     def __init__(self, status):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.stats = status
     def __str__(self):
         output = ""
@@ -572,11 +572,11 @@ class DumpFULLV3Stats():
             if self.stats[4] != "OK":
                 output += "\n No stats available for display"
                 return output
-	    self.starttime = self.stats[2][0] + self.stats[2][1] / 1e9
-	    self.duration = self.curtime - self.starttime
+            self.starttime = self.stats[2][0] + self.stats[2][1] / 1e9
+            self.duration = self.curtime - self.starttime
             output += "NFSv3 Detailed statistics \n"
             output += "Stats collected since: " + time.ctime(self.stats[2][0]) + str(self.stats[2][1]) + " nsecs\n"
-	    output += "Duration: " + "%.10f" % self.duration + " seconds\n"
+            output += "Duration: " + "%.10f" % self.duration + " seconds\n"
             output += "\nOperation Details                         |  Operation Latency           "
             output += "\n==========================================|========================================"
             output += "\nName            Total     Error      Dups |       Avg          Min           Max   "
@@ -595,7 +595,7 @@ class DumpFULLV3Stats():
 
 class DumpFULLV4Stats():
     def __init__(self, status):
-	self.curtime = time.time()
+        self.curtime = time.time()
         self.stats = status
     def __str__(self):
         output = ""
@@ -605,11 +605,11 @@ class DumpFULLV4Stats():
             if self.stats[4] != "OK":
                 output += "\n No stats available for display"
                 return output
-	    self.starttime = self.stats[2][0] + self.stats[2][1] / 1e9
-	    self.duration = self.curtime - self.starttime
+            self.starttime = self.stats[2][0] + self.stats[2][1] / 1e9
+            self.duration = self.curtime - self.starttime
             output += "NFSv4 Detailed statistics \n"
             output += "Stats collected since: " + time.ctime(self.stats[2][0]) + str(self.stats[2][1]) + " nsecs\n"
-	    output += "Duration: " + "%.10f" % self.duration + " seconds\n"
+            output += "Duration: " + "%.10f" % self.duration + " seconds\n"
             output += "\nOperation Details                            |  Operation Latency                     "
             output += "\n=============================================|========================================"
             output += "\nName                        Total     Error  |       Avg          Min           Max   "
