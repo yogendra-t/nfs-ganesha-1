@@ -885,7 +885,7 @@ void prune_defunct_exports(uint64_t generation)
 
 /**
  * @brief Return all IO stats of an export
- * DBUS_TYPE_ARRAY, "qs(ttttt)(ttttt)"
+ * DBUS_TYPE_ARRAY, "qs(tttttt)(tttttt)"
  */
 
 static bool get_all_export_io(struct gsh_export *export_node, void *array_iter)

@@ -285,7 +285,7 @@ struct auth_stats {
 	.direction = "out"	       \
 }
 
-#define NFS_ALL_IO_REPLY_ARRAY_TYPE "(qs(ttttt)(ttttt))"
+#define NFS_ALL_IO_REPLY_ARRAY_TYPE "(qs(tttttt)(tttttt))"
 #define NFS_ALL_IO_REPLY			\
 {						\
 	.name = "iostats",			\
