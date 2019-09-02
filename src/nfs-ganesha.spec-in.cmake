@@ -389,6 +389,7 @@ cmake .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DUSE_9P=ON					\
 	-DDISTNAME_HAS_GIT_DATA=OFF			\
 	-DUSE_MAN_PAGE=%{use_man_page}                  \
+        -DUSE_LTTNG=ON                                  \
 %if %{with jemalloc}
 	-DALLOCATOR=jemalloc 				\
 %endif
