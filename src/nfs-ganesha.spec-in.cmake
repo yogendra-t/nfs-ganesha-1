@@ -478,6 +478,7 @@ cmake .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DRPCBIND=%{use_rpcbind}			\
 	-D_MSPAC_SUPPORT=%{use_mspac_support}		\
 	-DSANITIZE_ADDRESS=%{use_sanitize_address}	\
+	-DUSE_LTTNG=ON                                  \
 %if %{with jemalloc}
 	-DALLOCATOR=jemalloc 				\
 %endif
