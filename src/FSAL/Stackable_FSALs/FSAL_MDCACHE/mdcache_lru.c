@@ -808,7 +808,19 @@ lru_reap_chunk_impl(enum lru_q_id qid, mdcache_entry_t *parent)
 				/* We need an LRU ref on parent entry to protect
 				 * it while we do work on it's chunk.
 				 */
+#ifdef USE_LTTNG
+				int32_t refcnt =
+					atomic_inc_int32_t(&entry->lru.refcnt);
+#else
 				(void) atomic_inc_int32_t(&entry->lru.refcnt);
+#endif
+
+#ifdef USE_LTTNG
+				tracepoint(mdcache, mdc_lru_ref,
+					   __func__, __LINE__,
+					   &entry->obj_handle, entry->sub_handle,
+					   refcnt);
+#endif
 			}
 
 			/* Dequeue the chunk so it won't show up anymore */
