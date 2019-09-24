@@ -2377,6 +2377,61 @@ fsal_status_t merge_share(struct fsal_share *orig_share,
 	return fsalstat(ERR_FSAL_SHARE_DENIED, 0);
 }
 
+fsal_status_t get_tmp_fd(struct fsal_obj_handle *obj_hdl,
+			 bool check_share,
+			 bool bypass,
+			 fsal_openflags_t openflags,
+			 struct fsal_fd *my_fd,
+			 struct fsal_share *share,
+			 fsal_open_func open_func,
+			 struct fsal_fd **out_fd,
+			 bool *has_lock,
+			 bool *closefd)
+{
+	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
+
+	if (check_share) {
+		PTHREAD_RWLOCK_rdlock(&obj_hdl->obj_lock);
+
+		status = check_share_conflict(share,
+					      openflags,
+					      bypass);
+		if (FSAL_IS_ERROR(status)) {
+			LogDebug(COMPONENT_FSAL,
+				 "check_share_conflict failed with %s",
+				 msg_fsal_err(status.major));
+			goto fail;
+		}
+	}
+
+	if (!mdcache_lru_fds_available()) {
+		/* This seems the best idea, let the
+		 * client try again later after the reap.
+		 */
+		status.major = ERR_FSAL_DELAY;
+		goto fail;
+	}
+
+	status = open_func(obj_hdl, openflags, *out_fd);
+
+	if (FSAL_IS_ERROR(status))
+		goto fail;
+
+	/* Return the temp fd, with the lock only held if
+	 * share reservations were checked.
+	 */
+	*closefd = true;
+	*has_lock = check_share;
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+
+fail:
+	if (check_share)
+		PTHREAD_RWLOCK_unlock(&obj_hdl->obj_lock);
+
+	*has_lock = false;
+	return status;
+}
+
 /**
  * @brief Reopen the fd associated with the object handle.
  *
@@ -2472,6 +2527,15 @@ again:
 		     (int) my_fd->openflags,
 		     (int) openflags);
 
+	if (!mdcache_lru_caching_fds()) {
+		/* Drop the read lock */
+		PTHREAD_RWLOCK_unlock(&obj_hdl->obj_lock);
+
+		return get_tmp_fd(obj_hdl, check_share, bypass, openflags,
+				  my_fd, share, open_func, out_fd, has_lock,
+				  closefd);
+	}
+
 	if (not_open_usable(my_fd->openflags, openflags)) {
 
 		/* Drop the read lock */
@@ -2510,42 +2574,9 @@ again:
 			 * share reservation for the duration of the caller's
 			 * operation if we needed to check.
 			 */
-			if (check_share) {
-				PTHREAD_RWLOCK_rdlock(&obj_hdl->obj_lock);
-
-				status = check_share_conflict(share,
-							      openflags,
-							      bypass);
-
-				if (FSAL_IS_ERROR(status)) {
-					PTHREAD_RWLOCK_unlock(
-							&obj_hdl->obj_lock);
-					LogDebug(COMPONENT_FSAL,
-						 "check_share_conflict failed with %s",
-						 msg_fsal_err(status.major));
-					*has_lock = false;
-					return status;
-				}
-			}
-
-			status = open_func(obj_hdl, openflags, *out_fd);
-
-			if (FSAL_IS_ERROR(status)) {
-				if (check_share)
-					PTHREAD_RWLOCK_unlock(
-							&obj_hdl->obj_lock);
-				*has_lock = false;
-				return status;
-			}
-
-			/* Return the temp fd, with the lock only held if
-			 * share reservations were checked.
-			 */
-			*closefd = true;
-			*has_lock = check_share;
-
-			return fsalstat(ERR_FSAL_NO_ERROR, 0);
-
+			return get_tmp_fd(obj_hdl, check_share, bypass,
+					  openflags, my_fd, share, open_func,
+					  out_fd, has_lock, closefd);
 		} else if (rc != 0) {
 			LogCrit(COMPONENT_RW_LOCK,
 				"Error %d, write locking %p", rc, obj_hdl);

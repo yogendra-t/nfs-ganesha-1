@@ -446,6 +446,7 @@ fsal_status_t fsal_commit(struct fsal_obj_handle *obj_hdl, off_t offset,
 fsal_status_t fsal_verify2(struct fsal_obj_handle *obj,
 			   fsal_verifier_t verifier);
 bool fsal_is_open(struct fsal_obj_handle *obj);
+fsal_status_t fsal_close2(struct fsal_obj_handle *obj);
 
 /**
  * @brief Pepare an attrlist for fetching attributes.
