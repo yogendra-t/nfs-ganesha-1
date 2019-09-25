@@ -261,8 +261,12 @@ BuildRequires:  python2-devel
 BuildRequires:	python-qt4-devel
 Requires:	python-qt4
 %else
+%if ( 0%{?fedora} >= 31 || 0%{?rhel} >= 8 )
+BuildRequires:	PyQt5-devel
+%else
 BuildRequires:	PyQt4-devel
 Requires:	PyQt4
+%endif
 %endif
 %endif
 Obsoletes: nfs-ganesha-utils < 2.5.3-ibm023.00
