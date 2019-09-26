@@ -455,14 +455,22 @@ void mdcache_refresh_attrs_no_invalidate(mdcache_entry_t *entry)
 	}
 }
 
-fsal_status_t mdcache_new_entry(struct mdcache_fsal_export *export,
-				struct fsal_obj_handle *sub_handle,
-				struct attrlist *attrs_in,
-				struct attrlist *attrs_out,
-				bool new_directory,
-				mdcache_entry_t **entry,
-				struct state_t *state);
-fsal_status_t mdcache_find_keyed(mdcache_key_t *key, mdcache_entry_t **entry);
+#define mdcache_new_entry(exp, sub_handle, attrs_in, attrs_out, new_directory, \
+			  entry, state) \
+_mdcache_new_entry(exp, sub_handle, attrs_in, attrs_out, new_directory, entry, \
+		   state, __func__, __LINE__)
+fsal_status_t _mdcache_new_entry(struct mdcache_fsal_export *export,
+				 struct fsal_obj_handle *sub_handle,
+				 struct attrlist *attrs_in,
+				 struct attrlist *attrs_out,
+				 bool new_directory,
+				 mdcache_entry_t **entry,
+				 struct state_t *state,
+				 const char *func, int line);
+fsal_status_t _mdcache_find_keyed(mdcache_key_t *key, mdcache_entry_t **entry,
+				  const char *func, int line);
+#define mdcache_find_keyed(key, entry) \
+	_mdcache_find_keyed(key, entry, __func__, __LINE__)
 fsal_status_t mdcache_locate_host(struct gsh_buffdesc *fh_desc,
 				  struct mdcache_fsal_export *export,
 				  mdcache_entry_t **entry,

@@ -601,13 +601,14 @@ void mdcache_dirent_invalidate_all(mdcache_entry_t *entry)
  * @return FSAL status
  */
 fsal_status_t
-mdcache_new_entry(struct mdcache_fsal_export *export,
+_mdcache_new_entry(struct mdcache_fsal_export *export,
 		  struct fsal_obj_handle *sub_handle,
 		  struct attrlist *attrs_in,
 		  struct attrlist *attrs_out,
 		  bool new_directory,
 		  mdcache_entry_t **entry,
-		  struct state_t *state)
+		  struct state_t *state,
+		  const char *func, int line)
 {
 	fsal_status_t status;
 	mdcache_entry_t *oentry, *nentry = NULL;
@@ -630,7 +631,7 @@ mdcache_new_entry(struct mdcache_fsal_export *export,
 	/* Check if the entry already exists.  We allow the following race
 	 * because mdcache_lru_get has a slow path, and the latch is a
 	 * shared lock. */
-	status = mdcache_find_keyed(&key, entry);
+	status = _mdcache_find_keyed(&key, entry, func, line);
 	if (!FSAL_IS_ERROR(status)) {
 		LogDebug(COMPONENT_CACHE_INODE,
 			 "Trying to add an already existing entry. Found entry %p type: %d, New type: %d",
@@ -923,7 +924,8 @@ int display_mdcache_key(struct display_buffer *dspbuf, mdcache_key_t *key)
  * @return Status
  */
 fsal_status_t
-mdcache_find_keyed(mdcache_key_t *key, mdcache_entry_t **entry)
+_mdcache_find_keyed(mdcache_key_t *key, mdcache_entry_t **entry,
+		    const char *func, int line)
 {
 	cih_latch_t latch;
 
@@ -950,7 +952,7 @@ mdcache_find_keyed(mdcache_key_t *key, mdcache_entry_t **entry)
 		fsal_status_t status;
 
 		/* Initial Ref on entry */
-		status = mdcache_lru_ref(*entry, LRU_REQ_INITIAL);
+		status = _mdcache_lru_ref(*entry, LRU_REQ_INITIAL, func, line);
 		/* Release the subtree hash table lock */
 		cih_hash_release(&latch);
 		if (FSAL_IS_ERROR(status)) {

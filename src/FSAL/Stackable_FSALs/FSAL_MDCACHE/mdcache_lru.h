@@ -164,10 +164,12 @@ void mdcache_lru_kill_for_shutdown(mdcache_entry_t *entry);
  *
  * @param[in] entry Cache entry being returned
  */
-static inline fsal_status_t mdcache_get(mdcache_entry_t *entry)
+static inline fsal_status_t _mdcache_get(mdcache_entry_t *entry,
+					 const char *func, int line)
 {
-	return mdcache_lru_ref(entry, LRU_FLAG_NONE);
+	return _mdcache_lru_ref(entry, LRU_FLAG_NONE, func, line);
 }
+#define mdcache_get(e) _mdcache_get(e, __func__, __LINE__)
 
 /**
  *
@@ -185,10 +187,12 @@ static inline fsal_status_t mdcache_get(mdcache_entry_t *entry)
  *
  * @param[in] entry Cache entry being returned
  */
-static inline void mdcache_put(mdcache_entry_t *entry)
+static inline void _mdcache_put(mdcache_entry_t *entry, const char *func,
+				int line)
 {
-	mdcache_lru_unref(entry);
+	_mdcache_lru_unref(entry, LRU_FLAG_NONE, func, line);
 }
+#define mdcache_put(e) _mdcache_put(e, __func__, __LINE__)
 
 void mdcache_lru_ref_chunk(struct dir_chunk *chunk);
 void mdcache_lru_unref_chunk(struct dir_chunk *chunk);
