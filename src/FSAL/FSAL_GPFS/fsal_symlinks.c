@@ -135,7 +135,7 @@ GPFSFSAL_symlink(struct fsal_obj_handle *dir_hdl, const char *linkname,
 	fsal_restore_ganesha_credentials();
 
 	if (rc) {
-		close(fd);
+		fsal_internal_close(fd, NULL, 0);
 		return fsalstat(posix2fsal_error(errsv), errsv);
 	}
 
@@ -145,7 +145,7 @@ GPFSFSAL_symlink(struct fsal_obj_handle *dir_hdl, const char *linkname,
 					     export_fd);
 
 	if (FSAL_IS_ERROR(status)) {
-		close(fd);
+		fsal_internal_close(fd, NULL, 0);
 		return status;
 	}
 
@@ -163,6 +163,6 @@ GPFSFSAL_symlink(struct fsal_obj_handle *dir_hdl, const char *linkname,
 		status = fsalstat(ERR_FSAL_EXIST, 0);
 	}
 
-	close(fd);
+	fsal_internal_close(fd, NULL, 0);
 	return status;
 }
