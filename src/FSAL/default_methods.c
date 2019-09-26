@@ -708,7 +708,8 @@ static bool handle_is(struct fsal_obj_handle *obj_hdl, object_file_type_t type)
  * FSAL_MDCACHE.
  */
 
-static void handle_get_ref(struct fsal_obj_handle *obj_hdl)
+static void handle_get_ref(struct fsal_obj_handle *obj_hdl, const char *func,
+			   int line)
 {
 	LogFatal(COMPONENT_FSAL,
 		 "FSAL Must support get_ref");
@@ -719,7 +720,8 @@ static void handle_get_ref(struct fsal_obj_handle *obj_hdl)
  * FSAL_MDCACHE.
  */
 
-static void handle_put_ref(struct fsal_obj_handle *obj_hdl)
+static void handle_put_ref(struct fsal_obj_handle *obj_hdl, const char *func,
+			   int line)
 {
 	LogFatal(COMPONENT_FSAL,
 		 "FSAL Must support put_ref");
@@ -1608,8 +1610,8 @@ static fsal_status_t close2(struct fsal_obj_handle *obj_hdl,
  */
 
 struct fsal_obj_ops def_handle_ops = {
-	.get_ref = handle_get_ref,
-	.put_ref = handle_put_ref,
+	._get_ref = handle_get_ref,
+	._put_ref = handle_put_ref,
 	.release = handle_release,
 	.merge = handle_merge,
 	.lookup = lookup,

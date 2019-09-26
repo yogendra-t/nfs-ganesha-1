@@ -1710,12 +1710,13 @@ static nfsstat4 mdcache_layoutcommit(struct fsal_obj_handle *obj_hdl,
  * @param[in] obj_hdl	Handle to ref
  * @return FSAL status
  */
-static void mdcache_get_ref(struct fsal_obj_handle *obj_hdl)
+static void mdcache_get_ref(struct fsal_obj_handle *obj_hdl, const char *func,
+			    int line)
 {
 	mdcache_entry_t *entry =
 		container_of(obj_hdl, mdcache_entry_t, obj_handle);
 
-	mdcache_get(entry);
+	_mdcache_get(entry, func, line);
 }
 
 /**
@@ -1724,12 +1725,13 @@ static void mdcache_get_ref(struct fsal_obj_handle *obj_hdl)
  * @param[in] obj_hdl	Handle to unref
  * @return FSAL status
  */
-static void mdcache_put_ref(struct fsal_obj_handle *obj_hdl)
+static void mdcache_put_ref(struct fsal_obj_handle *obj_hdl, const char *func,
+			    int line)
 {
 	mdcache_entry_t *entry =
 		container_of(obj_hdl, mdcache_entry_t, obj_handle);
 
-	mdcache_put(entry);
+	_mdcache_put(entry, func, line);
 }
 
 /**
@@ -1779,8 +1781,8 @@ static fsal_status_t mdcache_merge(struct fsal_obj_handle *orig_hdl,
 
 void mdcache_handle_ops_init(struct fsal_obj_ops *ops)
 {
-	ops->get_ref = mdcache_get_ref;
-	ops->put_ref = mdcache_put_ref;
+	ops->_get_ref = mdcache_get_ref;
+	ops->_put_ref = mdcache_put_ref;
 	ops->release = mdcache_hdl_release;
 	ops->merge = mdcache_merge;
 	ops->lookup = mdcache_lookup;
