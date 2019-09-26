@@ -23,7 +23,7 @@ Wants=nfs-ganesha-config.service
 [Service]
 Type=forking
 EnvironmentFile=-/run/sysconfig/ganesha
-ExecStart=/bin/bash -c "${MALLOC_ARENA_MAX} LD_PRELOAD=/usr/lib64/ganesha/libganesha_trace.so ${NUMACTL} ${NUMAOPTS} /usr/bin/gpfs.ganesha.nfsd -C ${OPTIONS} ${EPOCH}"
+ExecStart=/bin/bash -c "${MALLOC_ARENA_MAX} LD_PRELOAD='/usr/lib64/ganesha/libganesha_trace.so /lib64/libdl.so.2' ${NUMACTL} ${NUMAOPTS} /usr/bin/gpfs.ganesha.nfsd -C ${OPTIONS} ${EPOCH}"
 ExecReload=/bin/dbus-send --system   --dest=org.ganesha.nfsd --type=method_call /org/ganesha/nfsd/admin  org.ganesha.nfsd.admin.reload
 ExecStop=/bin/dbus-send --system   --dest=org.ganesha.nfsd --type=method_call /org/ganesha/nfsd/admin org.ganesha.nfsd.admin.shutdown
 
