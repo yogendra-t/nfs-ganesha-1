@@ -731,6 +731,16 @@ lru_try_reap_entry(void)
 	if (lru_state.entries_used < lru_state.entries_hiwat)
 		return NULL;
 
+	if (lru_state.entries_used > lru_state.entries_hiwat + 10000) {
+		LogEventLimited(COMPONENT_CACHE_INODE_LRU,
+				"LRU entries_used is higher than entries_hiwat, "
+				"current open_fd_count: %zd, entries_used: %"
+				PRIu64 " ,entries_hiwat: %" PRIu64,
+				atomic_fetch_size_t(&open_fd_count),
+				lru_state.entries_used,
+				lru_state.entries_hiwat);
+	}
+
 	/* XXX dang why not start with the cleanup list? */
 	lru = lru_reap_impl(LRU_ENTRY_L2);
 	if (!lru)
