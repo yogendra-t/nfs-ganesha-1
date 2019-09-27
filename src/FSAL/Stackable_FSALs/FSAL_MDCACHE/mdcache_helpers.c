@@ -171,7 +171,7 @@ static mdcache_entry_t *_mdcache_alloc_handle(
 	mdcache_entry_t *result;
 	fsal_status_t status;
 
-	result = mdcache_lru_get(sub_handle);
+	result = mdcache_lru_get(sub_handle, func, line);
 
 	if (result == NULL) {
 		/* Should never happen, but our caller will handle... */
@@ -1413,7 +1413,8 @@ fsal_status_t mdc_lookup_uncached(mdcache_entry_t *mdc_parent,
 	status = mdcache_alloc_and_check_handle(export, sub_handle, &new_obj,
 						false, &attrs, attrs_out,
 						"lookup ", mdc_parent, name,
-						&invalidate, NULL);
+						&invalidate, NULL,
+						__func__, __LINE__);
 
 	fsal_release_attrs(&attrs);
 

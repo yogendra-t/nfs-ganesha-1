@@ -1847,7 +1847,8 @@ mdcache_entry_t *alloc_cache_entry(void)
  *
  * @return a usable entry or NULL if unexport is in progress.
  */
-mdcache_entry_t *mdcache_lru_get(struct fsal_obj_handle *sub_handle)
+mdcache_entry_t *mdcache_lru_get(struct fsal_obj_handle *sub_handle,
+				 const char *func, int line)
 {
 	mdcache_lru_t *lru;
 	mdcache_entry_t *nentry = NULL;
@@ -1872,7 +1873,7 @@ mdcache_entry_t *mdcache_lru_get(struct fsal_obj_handle *sub_handle)
 
 #ifdef USE_LTTNG
 	tracepoint(mdcache, mdc_lru_get,
-		  __func__, __LINE__, &nentry->obj_handle, sub_handle,
+		  func, line, &nentry->obj_handle, sub_handle,
 		  nentry->lru.refcnt);
 #endif
 	return nentry;

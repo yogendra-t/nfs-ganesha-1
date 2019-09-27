@@ -432,7 +432,7 @@ fsal_status_t mdcache_open2(struct fsal_obj_handle *obj_hdl,
 						&attrs, attrs_out,
 						"open2 ", mdc_parent, name,
 						&invalidate,
-						state);
+						state, __func__, __LINE__);
 
 	PTHREAD_RWLOCK_unlock(&mdc_parent->content_lock);
 

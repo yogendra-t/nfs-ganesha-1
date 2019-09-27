@@ -92,14 +92,16 @@ fsal_status_t mdcache_alloc_and_check_handle(
 		mdcache_entry_t *parent,
 		const char *name,
 		bool *invalidate,
-		struct state_t *state)
+		struct state_t *state,
+		const char *func,
+		int line)
 {
 	fsal_status_t status;
 	mdcache_entry_t *new_entry;
 
-	status = mdcache_new_entry(export, sub_handle, attrs_in, attrs_out,
+	status = _mdcache_new_entry(export, sub_handle, attrs_in, attrs_out,
 				   new_directory, &new_entry, state,
-				   MDC_REASON_DEFAULT);
+				   MDC_REASON_DEFAULT, func, line);
 
 	if (FSAL_IS_ERROR(status)) {
 		*new_obj = NULL;
@@ -246,7 +248,8 @@ static fsal_status_t mdcache_mkdir(struct fsal_obj_handle *dir_hdl,
 	status = mdcache_alloc_and_check_handle(export, sub_handle, handle,
 						true, &attrs, attrs_out,
 						"mkdir ",  parent, name,
-						&invalidate, NULL);
+						&invalidate, NULL,
+						__func__, __LINE__);
 
 	PTHREAD_RWLOCK_unlock(&parent->content_lock);
 
@@ -326,7 +329,8 @@ static fsal_status_t mdcache_mknode(struct fsal_obj_handle *dir_hdl,
 	status = mdcache_alloc_and_check_handle(export, sub_handle, handle,
 						false, &attrs, attrs_out,
 						"mknode ",  parent, name,
-						&invalidate, NULL);
+						&invalidate, NULL,
+						__func__, __LINE__);
 
 	PTHREAD_RWLOCK_unlock(&parent->content_lock);
 
@@ -406,7 +410,8 @@ static fsal_status_t mdcache_symlink(struct fsal_obj_handle *dir_hdl,
 	status = mdcache_alloc_and_check_handle(export, sub_handle, handle,
 						false, &attrs, attrs_out,
 						"symlink ",  parent, name,
-						&invalidate, NULL);
+						&invalidate, NULL,
+						__func__, __LINE__);
 
 	PTHREAD_RWLOCK_unlock(&parent->content_lock);
 
