@@ -433,7 +433,9 @@ fsal_status_t mdcache_alloc_and_check_handle(
 		mdcache_entry_t *parent,
 		const char *name,
 		bool *invalidate,
-		struct state_t *state);
+		struct state_t *state,
+		const char *func,
+		int line);
 
 fsal_status_t mdcache_refresh_attrs(mdcache_entry_t *entry, bool need_acl,
 				    bool invalidate);
