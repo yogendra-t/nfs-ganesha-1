@@ -101,6 +101,11 @@ GPFSFSAL_lookup(const struct req_op_context *op_ctx,
 	status = fsal_internal_get_handle_at(parent_fd, filename, fh,
 					     export_fd);
 
+	/* After getting file handle 'fh' we won't be using parent_fd,
+	 * hence we can close parent_fd here.
+	 */
+	fsal_internal_close(parent_fd, NULL, 0);
+
 	/* GPFS returns ENOENT for lookup of ".." in the root directory.
 	 * If so, fill in the handle ourselves and act as though it
 	 * succeeded.
@@ -121,10 +126,8 @@ GPFSFSAL_lookup(const struct req_op_context *op_ctx,
 		}
 	}
 
-	if (FSAL_IS_ERROR(status)) {
-		fsal_internal_close(parent_fd, NULL, 0);
+	if (FSAL_IS_ERROR(status))
 		return status;
-	}
 
 	/* Sometimes GPFS sends us the same object as its parent with
 	 * lookup of DOTDOT. This is incorrect and also results in ABBA
@@ -148,7 +151,6 @@ GPFSFSAL_lookup(const struct req_op_context *op_ctx,
 		    memcmp(gfh, fh, gfh->handle_size) == 0) {
 			LogCrit(COMPONENT_FSAL,
 				"DOTDOT error, inode: %llu", inode);
-			fsal_internal_close(parent_fd, NULL, 0);
 			return fsalstat(ERR_FSAL_DELAY, 0);
 		}
 	}
@@ -190,8 +192,6 @@ GPFSFSAL_lookup(const struct req_op_context *op_ctx,
 	/* get object attributes */
 	status = GPFSFSAL_getattrs(op_ctx->fsal_export, gpfs_fs,
 				   op_ctx, fh, fsal_attr);
-
-	fsal_internal_close(parent_fd, NULL, 0);
 
 	/* lookup complete ! */
 	return status;
