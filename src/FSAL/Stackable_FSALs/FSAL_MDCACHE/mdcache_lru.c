@@ -1281,9 +1281,11 @@ lru_run(struct fridgethr_context *ctx)
 
 	fds_avg = (lru_state.fds_hiwat - lru_state.fds_lowat) / 2;
 
-	if (mdcache_param.use_fd_cache)
-		extremis = (atomic_fetch_size_t(&open_fd_count) >
-			    lru_state.fds_hiwat);
+	/* Even when use_fd_cache=false we cache FDs, so we shouldn't
+	   depend on 'use_fd_cache' to decide if we should find
+	   'extremis' or not */
+	extremis = (atomic_fetch_size_t(&open_fd_count) >
+		   lru_state.fds_hiwat);
 
 	LogFullDebug(COMPONENT_CACHE_INODE_LRU, "LRU awakes.");
 

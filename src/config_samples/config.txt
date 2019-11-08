@@ -497,6 +497,8 @@ CACHEINODE
 
 	LRU_Run_Interval(uint32, range 1 to 24 * 3600, default 90)
 
+	Close_Fast(bool, default false)
+
 	Cache_FDs(bool, default false)
 
 	FD_Limit_Percent(uint32, range 0 to 100, default 99)

@@ -370,8 +370,7 @@ bool mdcache_lru_fds_available(void)
 {
 	size_t open_fds = atomic_fetch_size_t(&open_fd_count);
 
-	if ((open_fds >= lru_state.fds_hard_limit)
-		&& lru_state.caching_fds) {
+	if (open_fds >= lru_state.fds_hard_limit) {
 		LogCrit(COMPONENT_CACHE_INODE_LRU,
 			"FD Hard Limit Exceeded (open_fd_count: %zu, fds_hard_limit: %u), Disabling FD Cache and waking LRU thread.",
 			open_fds, lru_state.fds_hard_limit);
@@ -430,8 +429,8 @@ void mdcache_dbus_show(DBusMessageIter *iter)
 }
 #endif /* USE_DBUS */
 
-bool mdcache_lru_caching_fds(void)
+bool mdcache_lru_using_temp_fds(void)
 {
-	return lru_state.caching_fds;
+	return mdcache_param.use_temp_fds;
 }
 /** @} */

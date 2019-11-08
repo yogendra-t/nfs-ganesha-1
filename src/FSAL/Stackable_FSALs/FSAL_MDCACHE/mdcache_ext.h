@@ -80,8 +80,13 @@ struct mdcache_parameter {
 	/** Base interval in seconds between runs of the LRU cleaner
 	    thread. Defaults to 60, settable with LRU_Run_Interval. */
 	uint32_t lru_run_interval;
+	/** Whether to close files immediately after opening files and
+	    using them for read/write/commit. Defaults to false,
+	    settable with Close_Fast. */
+	bool use_temp_fds;
 	/** Whether to cache open files.  Defaults to true, settable
-	    with Cache_FDs. */
+	    with Cache_FDs. Note, this setting has no effect when
+	    Close_Fast is set to true. */
 	bool use_fd_cache;
 	/** The percentage of the system-imposed maximum of file
 	    descriptors at which Ganesha will deny requests.

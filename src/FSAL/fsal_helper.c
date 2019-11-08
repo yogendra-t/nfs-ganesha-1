@@ -2006,7 +2006,7 @@ fsal_status_t fsal_close2(struct fsal_obj_handle *obj)
 {
 	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
 
-	if (!mdcache_lru_caching_fds()) {
+	if (mdcache_lru_using_temp_fds()) {
 		status = fsal_close(obj);
 
 		if (FSAL_IS_ERROR(status)) {

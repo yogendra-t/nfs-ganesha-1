@@ -2527,7 +2527,7 @@ again:
 		     (int) my_fd->openflags,
 		     (int) openflags);
 
-	if (!mdcache_lru_caching_fds()) {
+	if (mdcache_lru_using_temp_fds()) {
 		/* Drop the read lock */
 		PTHREAD_RWLOCK_unlock(&obj_hdl->obj_lock);
 
