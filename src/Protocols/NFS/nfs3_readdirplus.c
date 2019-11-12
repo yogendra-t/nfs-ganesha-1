@@ -360,9 +360,13 @@ int nfs3_readdirplus(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	if (dir_obj)
 		dir_obj->obj_ops->put_ref(dir_obj);
 
-	if (((res->res_readdir3.status != NFS3_OK) || (rc != NFS_REQ_OK))
-	    && (tracker.entries != NULL))
+	/* Deallocate memory in the event of an error */
+	if (((res->res_readdir3.status != NFS3_OK) || (rc != NFS_REQ_OK) ||
+	    ((num_entries == 0) && (begin_cookie > 1))) &&
+	    (tracker.entries != NULL)) {
 		free_entryplus3s(tracker.entries);
+		resok->reply.entries = NULL;
+	}
 
 	return rc;
 }				/* nfs3_readdirplus */
