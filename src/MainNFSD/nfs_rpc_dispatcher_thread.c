@@ -2000,6 +2000,11 @@ enum xprt_stat thr_decode_rpc_request(void *context, SVCXPRT *xprt)
 			     str_gc_proc(gc->gc_proc));
 		if (no_dispatch)
 			goto finish;
+	} else if ((reqdata->r_u.req.svc.rq_msg.cb_cred.oa_flavor
+		   == RPCSEC_GSS) && no_dispatch) {
+		LogFullDebug(COMPONENT_DISPATCH,
+			     "RPCSEC_GSS no_dispatch=%d", no_dispatch);
+		return SVC_STAT(xprt);
 #endif
 	}
 
