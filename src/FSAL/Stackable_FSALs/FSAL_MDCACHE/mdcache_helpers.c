@@ -840,7 +840,7 @@ mdcache_new_entry(struct mdcache_fsal_export *export,
 	 */
 	rc = cih_set_latched(nentry, &latch,
 			     op_ctx->fsal_export->fsal, &fh_desc,
-			     CIH_SET_UNLOCK | CIH_SET_HASHED);
+			     CIH_SET_HASHED);
 	if (unlikely(rc)) {
 		LogCrit(COMPONENT_CACHE_INODE,
 			"entry could not be added to hash, rc=%d", rc);
@@ -865,6 +865,7 @@ mdcache_new_entry(struct mdcache_fsal_export *export,
 		LogDebug(COMPONENT_CACHE_INODE, "New entry %p added", nentry);
 	}
 	mdcache_lru_insert(nentry, reason);
+	cih_hash_release(&latch);
 	*entry = nentry;
 	(void)atomic_inc_uint64_t(&cache_stp->inode_added);
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
