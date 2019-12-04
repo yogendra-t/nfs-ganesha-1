@@ -145,6 +145,58 @@ struct auth_stats {
 	.direction = "out" \
 }
 
+#define CEIOSTATS_REPLY    \
+{                          \
+	.name = "read",    \
+	.type = "(ttdt)",  \
+	.direction = "out" \
+},                         \
+{                          \
+	.name = "write",   \
+	.type = "(ttdt)",  \
+	.direction = "out" \
+},                         \
+{                          \
+	.name = "other",   \
+	.type = "(ttd)",   \
+	.direction = "out" \
+}
+
+#define CELOSTATS_REPLY    \
+{                          \
+	.name = "layout",  \
+	.type = "(ttt)",  \
+	.direction = "out" \
+}
+
+#define CE_STATS_REPLY      \
+{                           \
+	.name = "clnt_v3",  \
+	.type = "b",        \
+	.direction = "out"  \
+},                          \
+CEIOSTATS_REPLY,            \
+{                           \
+	.name = "clnt_v40", \
+	.type = "b",        \
+	.direction = "out"  \
+},                          \
+CEIOSTATS_REPLY,            \
+{                           \
+	.name = "clnt_v41", \
+	.type = "b",        \
+	.direction = "out"  \
+},                          \
+CEIOSTATS_REPLY,            \
+CELOSTATS_REPLY,            \
+{                           \
+	.name = "clnt_v42", \
+	.type = "b",        \
+	.direction = "out"  \
+},                          \
+CEIOSTATS_REPLY,            \
+CELOSTATS_REPLY
+
 #define TRANSPORT_REPLY    \
 {                          \
 	.name = "rx_bytes",\
@@ -312,6 +364,10 @@ struct auth_stats {
 
 
 void server_stats_summary(DBusMessageIter * iter, struct gsh_stats *st);
+void server_dbus_client_io_ops(DBusMessageIter *iter,
+				struct gsh_client *client);
+void server_dbus_export_details(DBusMessageIter *iter,
+				struct gsh_export *g_export);
 void server_dbus_v3_iostats(struct nfsv3_stats *v3p, DBusMessageIter *iter);
 void server_dbus_v40_iostats(struct nfsv40_stats *v40p, DBusMessageIter *iter);
 void server_dbus_v41_iostats(struct nfsv41_stats *v41p, DBusMessageIter *iter);

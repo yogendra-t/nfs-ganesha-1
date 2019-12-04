@@ -615,6 +615,45 @@ static struct gsh_client *lookup_client(DBusMessageIter *args, char **errormsg)
 }
 
 /**
+ * DBUS method to detailed client statistics
+ */
+static bool gsh_client_io_ops(DBusMessageIter *args,
+				  DBusMessage *reply,
+				  DBusError *error)
+{
+	char *errormsg = "OK";
+	struct gsh_client *client = NULL;
+	bool success = true;
+	DBusMessageIter iter;
+
+	dbus_message_iter_init_append(reply, &iter);
+	client = lookup_client(args, &errormsg);
+	if (client == NULL) {
+		success = false;
+		errormsg = "Client IP address not found";
+	}
+
+	dbus_status_reply(&iter, success, errormsg);
+	if (success)
+		server_dbus_client_io_ops(&iter, client);
+
+	if (client != NULL)
+		put_gsh_client(client);
+
+	return true;
+}
+
+static struct gsh_dbus_method cltmgr_client_io_ops = {
+	.name = "GetClientIOops",
+	.method = gsh_client_io_ops,
+	.args = {IPADDR_ARG,
+		 STATUS_REPLY,
+		 TIMESTAMP_REPLY,
+		 CE_STATS_REPLY,
+		 END_ARG_LIST}
+};
+
+/**
  * DBUS method to report NFSv3 I/O statistics
  *
  */
@@ -1011,6 +1050,7 @@ static struct gsh_dbus_method *cltmgr_stats_methods[] = {
 	&cltmgr_show_v41_io,
 	&cltmgr_show_v41_layouts,
 	&cltmgr_show_delegations,
+	&cltmgr_client_io_ops,
 #ifdef _USE_9P
 	&cltmgr_show_9p_io,
 	&cltmgr_show_9p_trans,

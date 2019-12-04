@@ -698,6 +698,29 @@ static void record_op(struct proto_op *op, nsecs_elapsed_t request_time,
 	record_latency(op, request_time, dup);
 }
 
+/**
+ * @brief count the protocol operation only
+ *
+ * Use atomic ops to avoid locks. We don't lock for the max
+ * and min because if there is a collision, over the long haul,
+ * the error is near zero...
+ *
+ * @param op           [IN] pointer to specific protocol struct
+ * @param success      [IN] protocol error code == OK
+ * @param dup          [IN] true if op was detected duplicate
+ */
+
+static void record_op_only(struct proto_op *op, bool success, bool dup)
+{
+	/* count the op */
+	(void)atomic_inc_uint64_t(&op->total);
+	/* also count it as an error if protocol not happy */
+	if (!success)
+		(void)atomic_inc_uint64_t(&op->errors);
+	if (unlikely(dup))
+		(void)atomic_inc_uint64_t(&op->dups);
+}
+
 #ifdef USE_DBUS
 /**
  *  @brief reset the counts for protocol operation
@@ -909,7 +932,7 @@ static void record_layout(struct nfsv41_stats *sp, int proto_op, int status)
 static void record_nfsv4_op(struct gsh_stats *gsh_st, pthread_rwlock_t *lock,
 			    int proto_op, int minorversion,
 			    nsecs_elapsed_t request_time,
-			    int status)
+			    int status, bool is_export)
 {
 	if (minorversion == 0) {
 		struct nfsv40_stats *sp = get_v40(gsh_st, lock);
@@ -917,14 +940,28 @@ static void record_nfsv4_op(struct gsh_stats *gsh_st, pthread_rwlock_t *lock,
 		/* record stuff */
 		switch (nfsv40_optype[proto_op]) {
 		case READ_OP:
-			record_latency(&sp->read.cmd, request_time, false);
+			if (is_export)
+				record_op(&sp->read.cmd, request_time,
+					status == NFS4_OK, false);
+			else
+				record_op_only(&sp->read.cmd,
+					status == NFS4_OK, false);
 			break;
 		case WRITE_OP:
-			record_latency(&sp->write.cmd, request_time, false);
+			if (is_export)
+				record_op(&sp->write.cmd, request_time,
+					status == NFS4_OK, false);
+			else
+				record_op_only(&sp->write.cmd,
+					status == NFS4_OK, false);
 			break;
 		default:
-			record_op(&sp->compounds, request_time,
-				  status == NFS4_OK, false);
+			if (is_export)
+				record_op(&sp->compounds, request_time,
+					status == NFS4_OK, false);
+			else
+				record_op_only(&sp->compounds,
+					status == NFS4_OK, false);
 		}
 	} else if (minorversion == 1) {
 		struct nfsv41_stats *sp = get_v41(gsh_st, lock);
@@ -932,17 +969,31 @@ static void record_nfsv4_op(struct gsh_stats *gsh_st, pthread_rwlock_t *lock,
 		/* record stuff */
 		switch (nfsv41_optype[proto_op]) {
 		case READ_OP:
-			record_latency(&sp->read.cmd, request_time, false);
+			if (is_export)
+				record_op(&sp->read.cmd, request_time,
+					status == NFS4_OK, false);
+			else
+				record_op_only(&sp->read.cmd,
+					status == NFS4_OK, false);
 			break;
 		case WRITE_OP:
-			record_latency(&sp->write.cmd, request_time, false);
+			if (is_export)
+				record_op(&sp->write.cmd, request_time,
+					status == NFS4_OK, false);
+			else
+				record_op_only(&sp->write.cmd,
+					status == NFS4_OK, false);
 			break;
 		case LAYOUT_OP:
 			record_layout(sp, proto_op, status);
 			break;
 		default:
-			record_op(&sp->compounds, request_time,
-				  status == NFS4_OK, false);
+			if (is_export)
+				record_op(&sp->compounds, request_time,
+					  status == NFS4_OK, false);
+			else
+				record_op_only(&sp->compounds,
+					  status == NFS4_OK, false);
 		}
 	} else if (minorversion == 2) {
 		struct nfsv41_stats *sp = get_v42(gsh_st, lock);
@@ -950,17 +1001,31 @@ static void record_nfsv4_op(struct gsh_stats *gsh_st, pthread_rwlock_t *lock,
 		/* record stuff */
 		switch (nfsv42_optype[proto_op]) {
 		case READ_OP:
-			record_latency(&sp->read.cmd, request_time, false);
+			if (is_export)
+				record_op(&sp->read.cmd, request_time,
+					status == NFS4_OK, false);
+			else
+				record_op_only(&sp->read.cmd,
+					status == NFS4_OK, false);
 			break;
 		case WRITE_OP:
-			record_latency(&sp->write.cmd, request_time, false);
+			if (is_export)
+				record_op(&sp->write.cmd, request_time,
+					status == NFS4_OK, false);
+			else
+				record_op_only(&sp->write.cmd,
+					status == NFS4_OK, false);
 			break;
 		case LAYOUT_OP:
 			record_layout(sp, proto_op, status);
 			break;
 		default:
-			record_op(&sp->compounds, request_time,
-				  status == NFS4_OK, false);
+			if (is_export)
+				record_op(&sp->compounds, request_time,
+					status == NFS4_OK, false);
+			else
+				record_op_only(&sp->compounds,
+					status == NFS4_OK, false);
 		}
 	}
 
@@ -1006,6 +1071,69 @@ static void record_compound(struct gsh_stats *gsh_st, pthread_rwlock_t *lock,
  * @param lock         [IN] lock on client|export for malloc
  * @param reqdata      [IN] info about the proto request
  * @param success      [IN] the op returned OK (or error)
+ * @param dup          [IN] detected this was a dup request
+ */
+
+static void record_clnt_stats(struct gsh_stats *gsh_st, pthread_rwlock_t *lock,
+			 request_data_t *reqdata, bool success, bool dup)
+{
+	struct svc_req *req = &reqdata->r_u.req.svc;
+	uint32_t proto_op = req->rq_msg.cb_proc;
+	uint32_t program_op = req->rq_msg.cb_prog;
+
+	if (program_op == NFS_program[P_NFS]) {
+		if (proto_op == 0)
+			return;	/* we don't count NULL ops */
+		if (req->rq_msg.cb_vers == NFS_V3) {
+			struct nfsv3_stats *sp = get_v3(gsh_st, lock);
+
+			/* record stuff */
+			switch (nfsv3_optype[proto_op]) {
+			case READ_OP:
+				record_op_only(&sp->read.cmd, success, dup);
+				break;
+			case WRITE_OP:
+				record_op_only(&sp->write.cmd, success, dup);
+				break;
+			default:
+				record_op_only(&sp->cmds, success, dup);
+			}
+		} else {
+			/* We don't do V4 here and V2 is toast */
+			return;
+		}
+	} else if (program_op == NFS_program[P_MNT]) {
+		struct mnt_stats *sp = get_mnt(gsh_st, lock);
+
+		if (req->rq_msg.cb_vers == MOUNT_V1)
+			record_op_only(&sp->v1_ops, success, dup);
+		else
+			record_op_only(&sp->v3_ops, success, dup);
+	} else if (program_op == NFS_program[P_NLM]) {
+		struct nlmv4_stats *sp = get_nlm4(gsh_st, lock);
+
+		record_op_only(&sp->ops, success, dup);
+	} else if (program_op == NFS_program[P_RQUOTA]) {
+		struct rquota_stats *sp = get_rquota(gsh_st, lock);
+
+		if (req->rq_msg.cb_vers == RQUOTAVERS)
+			record_op_only(&sp->ops, success, dup);
+		else
+			record_op_only(&sp->ext_ops, success, dup);
+	}
+}
+
+
+/**
+ * @brief Record request statistics (V3 era protos only)
+ *
+ * Decode the protocol and find the proto specific stats struct.
+ * Once we found the stats block, do the update(s).
+ *
+ * @param gsh_st       [IN] stats struct from client or export
+ * @param lock         [IN] lock on client|export for malloc
+ * @param reqdata      [IN] info about the proto request
+ * @param success      [IN] the op returned OK (or error)
  * @param request_time [IN] time consumed by request
  * @param dup          [IN] detected this was a dup request
  */
@@ -1030,12 +1158,12 @@ static void record_stats(struct gsh_stats *gsh_st, pthread_rwlock_t *lock,
 					  success, dup);
 			switch (nfsv3_optype[proto_op]) {
 			case READ_OP:
-				record_latency(&sp->read.cmd, request_time,
-					       dup);
+				record_op(&sp->read.cmd, request_time,
+					   success, dup);
 				break;
 			case WRITE_OP:
-				record_latency(&sp->write.cmd, request_time,
-					       dup);
+				record_op(&sp->write.cmd, request_time,
+					  success, dup);
 				break;
 			default:
 				record_op(&sp->cmds, request_time,
@@ -1105,8 +1233,6 @@ static void record_transport_stats(struct transport_stats *t_st,
 	if (tx_err)
 		atomic_add_uint64_t(&t_st->tx_err, tx_err);
 }
-#endif
-#ifdef _USE_9P
 /**
  * @brief record 9P tcp transport stats
  *
@@ -1210,9 +1336,8 @@ void server_stats_nfs_done(request_data_t *reqdata, int rc, bool dup)
 		struct server_stats *server_st;
 
 		server_st = container_of(client, struct server_stats, client);
-		record_stats(&server_st->st, &client->lock, reqdata,
-			     stop_time - op_ctx->start_time,
-			     rc == NFS_REQ_OK, dup, true);
+		record_clnt_stats(&server_st->st, &client->lock, reqdata,
+			     rc == NFS_REQ_OK, dup);
 		(void)atomic_store_uint64_t(&client->last_update, stop_time);
 	}
 	if (!dup && op_ctx->ctx_export != NULL) {
@@ -1223,7 +1348,7 @@ void server_stats_nfs_done(request_data_t *reqdata, int rc, bool dup)
 			    export);
 		record_stats(&exp_st->st, &op_ctx->ctx_export->lock, reqdata,
 			     stop_time - op_ctx->start_time,
-			     rc == NFS_REQ_OK, dup, false);
+			     rc == NFS_REQ_OK, dup, true);
 		(void)atomic_store_uint64_t(&op_ctx->ctx_export->last_update,
 					    stop_time);
 	}
@@ -1263,7 +1388,7 @@ void server_stats_nfsv4_op_done(int proto_op,
 		server_st = container_of(client, struct server_stats, client);
 		record_nfsv4_op(&server_st->st, &client->lock, proto_op,
 				op_ctx->nfs_minorvers, stop_time - start_time,
-				status);
+				status, false);
 		(void)atomic_store_uint64_t(&client->last_update, stop_time);
 	}
 
@@ -1284,9 +1409,8 @@ void server_stats_nfsv4_op_done(int proto_op,
 		    container_of(op_ctx->ctx_export, struct export_stats,
 			    export);
 		record_nfsv4_op(&exp_st->st, &op_ctx->ctx_export->lock,
-				proto_op,
-				op_ctx->nfs_minorvers, stop_time - start_time,
-				status);
+				proto_op, op_ctx->nfs_minorvers,
+				stop_time - start_time, status, true);
 		(void)atomic_store_uint64_t(&op_ctx->ctx_export->last_update,
 					    stop_time);
 	}
@@ -1552,6 +1676,116 @@ static void server_dbus_iostats(struct xfer_op *iop, DBusMessageIter *iter)
 	dbus_message_iter_close_container(iter, &struct_iter);
 }
 
+/**
+ * @brief Report Client/Export statistics for xfer_op
+ *
+ * struct iostats {
+ *       uint64_t total_ops;
+ *       uint64_t errors;
+ *       double latency;
+ *       uint64_t bytes_transferred;
+ * }
+ *
+ * @param iop   [IN] pointer to xfer op sub-structure of interest
+ * @param iter  [IN] interator in reply stream to fill
+ * @param for_export  [IN] boolean indicating whether it is for an export
+ **/
+
+static void server_dbus_cexop_stats(struct xfer_op *iop, DBusMessageIter *iter,
+				    bool for_export)
+{
+	DBusMessageIter struct_iter;
+	double res = 0.0;
+
+	dbus_message_iter_open_container(iter, DBUS_TYPE_STRUCT, NULL,
+					 &struct_iter);
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+				       &iop->cmd.total);
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+				       &iop->cmd.errors);
+	if (for_export) {
+		if (iop->cmd.total)
+			res = (double) (iop->cmd.latency.latency * 0.000001) /
+					(iop->cmd.total);
+		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_DOUBLE,
+					       &res);
+	}
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+				       &iop->transferred);
+	dbus_message_iter_close_container(iter, &struct_iter);
+}
+
+/**
+ * @brief Report Client/Export statistics for proto_op
+ *
+ * struct iostats {
+ *       uint64_t total_ops;
+ *       uint64_t errors;
+ *       double latency;
+ * }
+ *
+ * @param iop   [IN] pointer to proto_op sub-structure of interest
+ * @param iter  [IN] interator in reply stream to fill
+ * @param for_export  [IN] boolean indicating whether it is for an export
+ **/
+static void server_dbus_ceop_stats(struct proto_op *op, DBusMessageIter *iter,
+				   bool for_export)
+{
+	DBusMessageIter struct_iter;
+	double res = 0.0;
+
+	dbus_message_iter_open_container(iter, DBUS_TYPE_STRUCT, NULL,
+					 &struct_iter);
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+				       &op->total);
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+				       &op->errors);
+	if (for_export) {
+		if (op->total)
+			res = (double) (op->latency.latency / op->total) *
+			       0.000001;
+		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_DOUBLE,
+					       &res);
+	}
+	dbus_message_iter_close_container(iter, &struct_iter);
+}
+
+/**
+ * @brief Report Client/Export statistics for layout operations
+ *
+ * struct layout {
+ *       uint64_t total;
+ *       uint64_t errors;
+ *       uint64_t delays;
+ * }
+ *
+ * @param sp   [IN] pointer to nfsv41_stats sub-structure of interest
+ * @param iter  [IN] interator in reply stream to fill
+ * @param for_export  [IN] boolean indicating whether it is for an export
+ **/
+static void server_dbus_celo_stats(struct nfsv41_stats *sp,
+				   DBusMessageIter *iter,
+				   bool for_export)
+{
+	DBusMessageIter struct_iter;
+	uint64_t total, errors, delays;
+
+	total = sp->getdevinfo.total + sp->layout_get.total +
+		sp->layout_commit.total + sp->layout_return.total;
+	errors = sp->getdevinfo.errors + sp->layout_get.errors +
+		sp->layout_commit.errors + sp->layout_return.errors;
+	delays = sp->getdevinfo.delays + sp->layout_get.delays +
+		sp->layout_commit.delays + sp->layout_return.delays;
+	dbus_message_iter_open_container(iter, DBUS_TYPE_STRUCT, NULL,
+					 &struct_iter);
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64, &total);
+	dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64, &errors);
+	if (for_export)
+		dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_UINT64,
+					       &delays);
+	dbus_message_iter_close_container(iter, &struct_iter);
+}
+
 #ifdef _USE_9P
 static void server_dbus_transportstats(struct transport_stats *tstats,
 				       DBusMessageIter *iter)
@@ -1575,6 +1809,112 @@ static void server_dbus_transportstats(struct transport_stats *tstats,
 	dbus_message_iter_close_container(iter, &struct_iter);
 }
 #endif
+
+void server_dbus_client_io_ops(DBusMessageIter *iter,
+				struct gsh_client *client)
+{
+	struct server_stats *svr = NULL;
+	struct gsh_stats *st;
+	dbus_bool_t stats_available;
+	struct timespec last_as_ts = nfs_ServerBootTime;
+
+	svr = container_of(client, struct server_stats, client);
+	st = &svr->st;
+	timespec_add_nsecs(client->last_update, &last_as_ts);
+
+	dbus_append_timestamp(iter, &last_as_ts);
+
+	stats_available = st->nfsv3 != 0;
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN,
+				       &stats_available);
+	if (st->nfsv3) {
+		server_dbus_cexop_stats(&st->nfsv3->read, iter, false);
+		server_dbus_cexop_stats(&st->nfsv3->write, iter, false);
+		server_dbus_ceop_stats(&st->nfsv3->cmds, iter, false);
+	}
+
+	stats_available = st->nfsv40 != 0;
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN,
+				       &stats_available);
+	if (st->nfsv40) {
+		server_dbus_cexop_stats(&st->nfsv40->read, iter, false);
+		server_dbus_cexop_stats(&st->nfsv40->write, iter, false);
+		server_dbus_ceop_stats(&st->nfsv40->compounds, iter, false);
+	}
+
+	stats_available = st->nfsv41 != 0;
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN,
+				       &stats_available);
+	if (st->nfsv41) {
+		server_dbus_cexop_stats(&st->nfsv41->read, iter, false);
+		server_dbus_cexop_stats(&st->nfsv41->write, iter, false);
+		server_dbus_ceop_stats(&st->nfsv41->compounds, iter, false);
+		server_dbus_celo_stats(st->nfsv41, iter, false);
+	}
+
+	stats_available = st->nfsv42 != 0;
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN,
+				       &stats_available);
+	if (st->nfsv42) {
+		server_dbus_cexop_stats(&st->nfsv42->read, iter, false);
+		server_dbus_cexop_stats(&st->nfsv42->write, iter, false);
+		server_dbus_ceop_stats(&st->nfsv42->compounds, iter, false);
+		server_dbus_celo_stats(st->nfsv42, iter, false);
+	}
+}
+
+void server_dbus_export_details(DBusMessageIter *iter,
+				struct gsh_export *g_export)
+{
+	struct export_stats *exp_st = NULL;
+	struct gsh_stats *st;
+	dbus_bool_t stats_available;
+	struct timespec last_as_ts = nfs_ServerBootTime;
+
+	exp_st = container_of(g_export, struct export_stats, export);
+	st = &exp_st->st;
+	timespec_add_nsecs(g_export->last_update, &last_as_ts);
+
+	dbus_append_timestamp(iter, &last_as_ts);
+
+	stats_available = st->nfsv3 != 0;
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN,
+				       &stats_available);
+	if (st->nfsv3) {
+		server_dbus_cexop_stats(&st->nfsv3->read, iter, true);
+		server_dbus_cexop_stats(&st->nfsv3->write, iter, true);
+		server_dbus_ceop_stats(&st->nfsv3->cmds, iter, true);
+	}
+
+	stats_available = st->nfsv40 != 0;
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN,
+				       &stats_available);
+	if (st->nfsv40) {
+		server_dbus_cexop_stats(&st->nfsv40->read, iter, true);
+		server_dbus_cexop_stats(&st->nfsv40->write, iter, true);
+		server_dbus_ceop_stats(&st->nfsv40->compounds, iter, true);
+	}
+
+	stats_available = st->nfsv41 != 0;
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN,
+				       &stats_available);
+	if (st->nfsv41) {
+		server_dbus_cexop_stats(&st->nfsv41->read, iter, true);
+		server_dbus_cexop_stats(&st->nfsv41->write, iter, true);
+		server_dbus_ceop_stats(&st->nfsv41->compounds, iter, true);
+		server_dbus_celo_stats(st->nfsv41, iter, true);
+	}
+
+	stats_available = st->nfsv42 != 0;
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN,
+				       &stats_available);
+	if (st->nfsv42) {
+		server_dbus_cexop_stats(&st->nfsv42->read, iter, true);
+		server_dbus_cexop_stats(&st->nfsv42->write, iter, true);
+		server_dbus_ceop_stats(&st->nfsv42->compounds, iter, true);
+		server_dbus_celo_stats(st->nfsv42, iter, true);
+	}
+}
 
 void server_dbus_total(struct export_stats *export_st, DBusMessageIter *iter)
 {
