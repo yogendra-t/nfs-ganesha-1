@@ -2004,7 +2004,7 @@ enum xprt_stat thr_decode_rpc_request(void *context, SVCXPRT *xprt)
 		   == RPCSEC_GSS) && no_dispatch) {
 		LogFullDebug(COMPONENT_DISPATCH,
 			     "RPCSEC_GSS no_dispatch=%d", no_dispatch);
-		return SVC_STAT(xprt);
+		goto finish;
 #endif
 	}
 
