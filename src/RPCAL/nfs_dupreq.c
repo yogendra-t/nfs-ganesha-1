@@ -1069,7 +1069,6 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs,
 
 	dk->hk = req->rq_cksum; /* TI-RPC computed checksum */
 	dk->state = DUPREQ_START;
-	dk->timestamp = time(NULL);
 
 	{
 		struct opr_rbtree_node *nv;
@@ -1082,7 +1081,7 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs,
 			nfs_dupreq_free_dupreq(dk);
 			dv = opr_containerof(nv, dupreq_entry_t, rbt_k);
 			PTHREAD_MUTEX_lock(&dv->mtx);
-			if (unlikely(dv->state == DUPREQ_START)) {
+			if (unlikely(dv->state != DUPREQ_COMPLETE)) {
 				status = DUPREQ_BEING_PROCESSED;
 			} else {
 				/* satisfy req from the DRC, incref,
@@ -1184,8 +1183,7 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 		goto out;
 
 	PTHREAD_MUTEX_lock(&dv->mtx);
-	dv->res = res_nfs;
-	dv->timestamp = time(NULL);
+	assert(dv->res == res_nfs);
 	dv->state = DUPREQ_COMPLETE;
 	PTHREAD_MUTEX_unlock(&dv->mtx);
 
