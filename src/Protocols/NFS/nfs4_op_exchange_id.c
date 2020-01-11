@@ -141,8 +141,10 @@ int nfs4_op_exchange_id(struct nfs_argop4 *op, compound_data_t *data,
 
 	if (cid_server_owner[0] == '\0') {
 		/* Set up the server owner string */
-		if (gethostname(cid_server_owner,
-				sizeof(cid_server_owner)) == -1) {
+		if (gsh_gethostname(cid_server_owner,
+				sizeof(cid_server_owner),
+				nfs_param.core_param.enable_AUTHSTATS)
+				== -1) {
 			res_EXCHANGE_ID4->eir_status = NFS4ERR_SERVERFAULT;
 			return res_EXCHANGE_ID4->eir_status;
 		}

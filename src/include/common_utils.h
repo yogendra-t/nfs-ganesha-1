@@ -16,9 +16,11 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <netdb.h>
 
 #include "gsh_types.h"
 #include "log.h"
+#include "idmapper.h"
 
 /**
  * BUILD_BUG_ON - break compile if a condition is true.
@@ -560,6 +562,68 @@ static inline int strmaxcat(char *dest, const char *src, size_t dest_size)
 
 	memcpy(dest + destlen, src, srclen + 1);
 	return 0;
+}
+
+/*wrapper for gethostname to capture auth stats, if required */
+static inline int gsh_gethostname(char *name, size_t len, bool stats)
+{
+	int ret;
+	struct timespec s_time, e_time;
+
+	if (stats)
+		now(&s_time);
+
+	ret = gethostname(name, len);
+
+	if (!ret && stats) {
+		now(&e_time);
+		dns_stats_update(&s_time, &e_time);
+	}
+	return ret;
+}
+
+/*wrapper for getaddrinfo to capture auth stats, if required */
+static inline int gsh_getaddrinfo(const char *node,
+				  const char *service,
+				  const struct addrinfo *hints,
+				  struct addrinfo **res,
+				  bool stats)
+{
+	int ret;
+	struct timespec s_time, e_time;
+
+	if (stats)
+		now(&s_time);
+
+	ret = getaddrinfo(node, service, hints, res);
+
+	if (!ret && stats) {
+		now(&e_time);
+		dns_stats_update(&s_time, &e_time);
+	}
+	return ret;
+}
+
+/*wrapper for getnameinfo to capture auth stats, if required */
+static inline int gsh_getnameinfo(const struct sockaddr *addr,
+				  socklen_t addrlen,
+				  char *host, socklen_t hostlen,
+				  char *serv, socklen_t servlen,
+				  int flags, bool stats)
+{
+	int ret;
+	struct timespec s_time, e_time;
+
+	if (stats)
+		now(&s_time);
+
+	ret = getnameinfo(addr, addrlen, host, hostlen, serv, servlen, flags);
+
+	if (!ret && stats) {
+		now(&e_time);
+		dns_stats_update(&s_time, &e_time);
+	}
+	return ret;
 }
 
 #endif				/* !COMMON_UTILS_H */
