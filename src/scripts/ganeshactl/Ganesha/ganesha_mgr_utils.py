@@ -326,6 +326,54 @@ class AdminInterface():
         msg = reply[1]
         return status, msg
 
+    def trim_enable(self):
+        method = self.dbusobj.get_dbus_method("trim_enable",
+                                              self.dbus_interface)
+        try:
+           reply = method()
+        except dbus.exceptions.DBusException as e:
+           return False, e
+
+        status = reply[0]
+        msg = reply[1]
+        return status, msg
+
+    def trim_disable(self):
+        method = self.dbusobj.get_dbus_method("trim_disable",
+                                              self.dbus_interface)
+        try:
+           reply = method()
+        except dbus.exceptions.DBusException as e:
+           return False, e
+
+        status = reply[0]
+        msg = reply[1]
+        return status, msg
+
+    def trim_call(self):
+        method = self.dbusobj.get_dbus_method("trim_call",
+                                              self.dbus_interface)
+        try:
+           reply = method()
+        except dbus.exceptions.DBusException as e:
+           return False, e
+
+        status = reply[0]
+        msg = reply[1]
+        return status, msg
+
+    def trim_status(self):
+        method = self.dbusobj.get_dbus_method("trim_status",
+                                              self.dbus_interface)
+        try:
+           reply = method()
+        except dbus.exceptions.DBusException as e:
+           return False, e
+
+        status = reply[0]
+        msg = reply[1]
+        return status, msg
+
 
 IDMapper = namedtuple('IDMapper',
                      ['Name',
@@ -400,54 +448,6 @@ class CacheMgr():
                               GID = entry[3])
             ids.append(entry1)
         return True, "Done", [ts, ids]
-
-    def trim_enable(self):
-        method = self.dbusobj.get_dbus_method("trim_enable",
-                                              self.dbus_interface)
-        try:
-           reply = method()
-        except dbus.exceptions.DBusException as e:
-           return False, e
-
-        status = reply[0]
-        msg = reply[1]
-        return status, msg
-
-    def trim_disable(self):
-        method = self.dbusobj.get_dbus_method("trim_disable",
-                                              self.dbus_interface)
-        try:
-           reply = method()
-        except dbus.exceptions.DBusException as e:
-           return False, e
-
-        status = reply[0]
-        msg = reply[1]
-        return status, msg
-
-    def trim_call(self):
-        method = self.dbusobj.get_dbus_method("trim_call",
-                                              self.dbus_interface)
-        try:
-           reply = method()
-        except dbus.exceptions.DBusException as e:
-           return False, e
-
-        status = reply[0]
-        msg = reply[1]
-        return status, msg
-
-    def trim_status(self):
-        method = self.dbusobj.get_dbus_method("trim_status",
-                                              self.dbus_interface)
-        try:
-           reply = method()
-        except dbus.exceptions.DBusException as e:
-           return False, e
-
-        status = reply[0]
-        msg = reply[1]
-        return status, msg
 
 LOGGER_PROPS = 'org.ganesha.nfsd.log.component'
 
