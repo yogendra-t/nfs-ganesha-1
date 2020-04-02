@@ -60,7 +60,7 @@ bool nsm_connect(void)
 	if (CLNT_FAILURE(nsm_clnt)) {
 		char *err = rpc_sperror(&nsm_clnt->cl_error, "failed");
 
-		LogCrit(COMPONENT_NLM, "connect to statd %s", err);
+		LogEventLimited(COMPONENT_NLM, "connect to statd %s", err);
 		gsh_free(err);
 		CLNT_DESTROY(nsm_clnt);
 		nsm_clnt = NULL;
@@ -116,9 +116,9 @@ static bool nsm_monitor_noretry(state_nsm_client_t *host)
 
 	/* create a connection to nsm on the localhost */
 	if (!nsm_connect()) {
-		LogCrit(COMPONENT_NLM,
-			"Monitor %s nsm_connect failed",
-			nsm_mon.mon_id.mon_name);
+		LogEventLimited(COMPONENT_NLM,
+				"Monitor %s nsm_connect failed",
+				nsm_mon.mon_id.mon_name);
 		PTHREAD_MUTEX_unlock(&nsm_mutex);
 		PTHREAD_MUTEX_unlock(&host->ssc_mutex);
 		return false;
@@ -138,9 +138,9 @@ static bool nsm_monitor_noretry(state_nsm_client_t *host)
 
 	if (ret != RPC_SUCCESS) {
 		t = rpc_sperror(&cc->cc_error, "failed");
-		LogCrit(COMPONENT_NLM,
-			"Monitor %s SM_MON %s",
-			nsm_mon.mon_id.mon_name, t);
+		LogEventLimited(COMPONENT_NLM,
+				"Monitor %s SM_MON %s",
+				nsm_mon.mon_id.mon_name, t);
 		gsh_free(t);
 
 		clnt_req_release(cc);
@@ -213,9 +213,9 @@ static bool nsm_unmonitor_noretry(state_nsm_client_t *host)
 
 	/* create a connection to nsm on the localhost */
 	if (!nsm_connect()) {
-		LogCrit(COMPONENT_NLM,
-			"Unmonitor %s nsm_connect failed",
-			nsm_mon_id.mon_name);
+		LogEventLimited(COMPONENT_NLM,
+				"Unmonitor %s nsm_connect failed",
+				nsm_mon_id.mon_name);
 		PTHREAD_MUTEX_unlock(&nsm_mutex);
 		PTHREAD_MUTEX_unlock(&host->ssc_mutex);
 		return false;
@@ -236,9 +236,9 @@ static bool nsm_unmonitor_noretry(state_nsm_client_t *host)
 	nsm_count--;
 	if (ret != RPC_SUCCESS) {
 		t = rpc_sperror(&cc->cc_error, "failed");
-		LogCrit(COMPONENT_NLM,
-			"Unmonitor %s SM_UNMON %s",
-			nsm_mon_id.mon_name, t);
+		LogEventLimited(COMPONENT_NLM,
+				"Unmonitor %s SM_UNMON %s",
+				nsm_mon_id.mon_name, t);
 		gsh_free(t);
 
 		clnt_req_release(cc);
@@ -289,8 +289,8 @@ void nsm_unmonitor_all(void)
 
 	/* create a connection to nsm on the localhost */
 	if (!nsm_connect()) {
-		LogCrit(COMPONENT_NLM,
-			"Unmonitor all nsm_connect failed");
+		LogEventLimited(COMPONENT_NLM,
+				"Unmonitor all nsm_connect failed");
 		PTHREAD_MUTEX_unlock(&nsm_mutex);
 		return;
 	}
@@ -309,9 +309,7 @@ void nsm_unmonitor_all(void)
 
 	if (ret != RPC_SUCCESS) {
 		t = rpc_sperror(&cc->cc_error, "failed");
-		LogCrit(COMPONENT_NLM,
-			"Unmonitor all %s",
-			t);
+		LogEventLimited(COMPONENT_NLM, "Unmonitor all %s", t);
 		gsh_free(t);
 		nsm_disconnect(true);
 	} else {
