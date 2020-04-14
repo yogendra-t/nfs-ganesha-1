@@ -113,7 +113,7 @@ int nfs4_op_delegreturn(struct nfs_argop4 *op, compound_data_t *data,
 	/* Release reference taken above. */
 	dec_state_owner_ref(owner);
 
-	PTHREAD_RWLOCK_wrlock(&data->current_obj->state_hdl->state_lock);
+	STATELOCK_wrlock(data->current_obj->state_hdl);
 	/* Now we have a lock owner and a stateid.
 	 * Go ahead and push unlock into SAL (and FSAL) to return
 	 * the delegation.
@@ -128,7 +128,7 @@ int nfs4_op_delegreturn(struct nfs_argop4 *op, compound_data_t *data,
 
 		state_del_locked(state_found);
 	}
-	PTHREAD_RWLOCK_unlock(&data->current_obj->state_hdl->state_lock);
+	STATELOCK_unlock(data->current_obj->state_hdl);
 
  out_unlock:
 
