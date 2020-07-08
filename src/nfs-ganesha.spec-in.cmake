@@ -241,15 +241,17 @@ be used with NFS-Ganesha to support PROXY based filesystems
 Summary: The NFS-GANESHA util scripts
 Group: Applications/System
 %if (0%{?suse_version} && 0%{?sle_version} >= 150000)
-Requires:	python3-dbus-python, python3-gobject, python3-pyparsing
-Requires: 	gpfs.nfs-ganesha = %{version}-%{release}, python3
-BuildRequires:  python3-devel
+Requires:	python3-dbus-python, python3-pyparsing
 %else
-# rhel
-Requires:	python3-dbus, python3-gobject, python3-pyparsing
+%if (0%{?rhel} && 0%{?rhel} >= 8)
+Requires:	python3-dbus, python3-pyparsing
+%else
+#python3-pyparsing not currently available on RHEL7.x
+Requires:	python3-dbus
+%endif
+%endif
 Requires: 	gpfs.nfs-ganesha = %{version}-%{release}, python3
 BuildRequires:  python3-devel
-%endif
 
 %if %{with gui_utils}
 %if ( 0%{?suse_version} )
