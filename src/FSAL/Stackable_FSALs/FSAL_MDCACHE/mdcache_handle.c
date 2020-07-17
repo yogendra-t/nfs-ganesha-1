@@ -1341,7 +1341,17 @@ static bool mdcache_is_referral(struct fsal_obj_handle *obj_hdl,
 	attrmask_t valid_request_mask = 0;
 	struct attrlist attrs[1];
 
-	fsal_prepare_attrs(attrs, ATTR_MODE | ATTR_TYPE);
+	/* is_referral needs only ATTR_MODE and ATTR_TYPE, but there are
+	 * callers that fill the attribute cache (nfs4_op_getfh and
+	 * nfs4_op_getattr) with this call. Let us get the attributes
+	 * and fill the attributes cache if needed. Without this fix,
+	 * cthon4 NFSv4's "./test7: link and rename" and pynfs RD4 tests
+	 * fail! Callers shouldn't overload is_referral() but have this
+	 * workaround until the callers are fixed.
+	 *
+	 * TODO: unused parameter isn't unused anymore!
+	 */
+	fsal_prepare_attrs(attrs, unused->request_mask);
 
 	PTHREAD_RWLOCK_rdlock(&entry->attr_lock);
 	locked = true;
