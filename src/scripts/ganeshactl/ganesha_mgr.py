@@ -213,6 +213,13 @@ class ServerAdmin():
         else:
             self.status_message(status, msg)
 
+    def get_version(self):
+        status, msg = self.admin.get_version()
+        if status == True:
+            print(msg)
+        else:
+            self.status_message(status, msg)
+
     def status_message(self, status, errormsg):
         print("Returns: status = %s, %s" % (str(status), errormsg))
 
@@ -349,6 +356,7 @@ if __name__ == '__main__':
        "      posix_fs: Displays the mounted POSIX filesystems\n"                  \
        "      exports: Displays all current exports\n"                             \
        "      idmap: Displays the idmapper cache\n\n"                              \
+       "      version: Displays nfs ganesha server version running\n\n"            \
        "   grace: \n"                                                              \
        "      ipaddr: Begins grace for the given IP\n\n"                           \
        "   get: \n"                                                                \
@@ -456,6 +464,8 @@ if __name__ == '__main__':
             cachemgr.showfs()
         elif sys.argv[2] == "idmap":
             cachemgr.showidmapper()
+        elif sys.argv[2] == "version":
+            ganesha.get_version()
         else:
             msg = "Showing '%s' is not supported" % sys.argv[2]
             sys.exit(msg)

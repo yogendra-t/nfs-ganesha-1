@@ -48,6 +48,11 @@ class AdminInterface(QtDBus.QDBusAbstractInterface):
         status = QtDBus.QDBusPendingCallWatcher(_async, self)
         status.finished.connect(self.admin_done)
 
+    def get_version(self):
+        _async = self.asyncCall("get_version")
+        status = QtDBus.QDBusPendingCallWatcher(_async, self)
+        status.finished.connect(self.admin_done)
+
     # catch the reply and forward it to the UI
     def admin_done(self, call):
         reply = QtDBus.QDBusPendingReply(call)

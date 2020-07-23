@@ -325,6 +325,17 @@ class AdminInterface():
             prop_dict[key] = dictionary[key]
         return True, "Done", prop_dict
 
+    def get_version(self):
+        method = self.dbusobj.get_dbus_method("get_version",
+                                                       self.dbus_interface)
+        try:
+           reply = method()
+        except dbus.exceptions.DBusException as e:
+           return False, e
+
+        status = reply[0]
+        msg = reply[1]
+        return status, msg
 
 IDMapper = namedtuple('IDMapper', ['Name', 'UID', 'HasGID', 'GID'])
 
