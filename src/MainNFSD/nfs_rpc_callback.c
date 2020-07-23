@@ -302,7 +302,7 @@ static inline int32_t nfs_clid_connected_socket(nfs_client_id_t *clientid,
 
 	assert(clientid->cid_minorversion == 0);
 
-	*fd = 0;
+	*fd = -1;
 	*proto = -1;
 
 	switch (clientid->cid_cb.v40.cb_addr.nc) {
@@ -572,6 +572,7 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *clientid, uint32_t flags)
 		gsh_free(err);
 		CLNT_DESTROY(chan->clnt);
 		chan->clnt = NULL;
+		close(fd);
 		return EINVAL;
 	}
 
@@ -600,6 +601,8 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *clientid, uint32_t flags)
 		gsh_free(err);
 		AUTH_DESTROY(chan->auth);
 		chan->auth = NULL;
+		CLNT_DESTROY(chan->clnt);
+		chan->clnt = NULL;
 		return EINVAL;
 	}
 	return 0;
