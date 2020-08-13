@@ -331,59 +331,93 @@ if __name__ == '__main__':
     logmgr = ManageLogs()
     cachemgr = ManageCache()
 
-    USAGE = \
-       "\nganesha_mgr.py command [OPTIONS]\n\n"                                    \
-       "COMMANDS\n\n"                                                              \
-       "   add: \n"                                                                \
-       "      client ipaddr: Adds the client with the given IP\n"                  \
-       "      export conf expr:\n"                                                 \
-       "         Adds an export from the given config file that contains\n"        \
-       "         the given expression\n"                                           \
-       "         Example: \n"                                                      \
-       "         add export /etc/ganesha/gpfs.conf \"EXPORT(Export_ID=77)\"\n\n"   \
-       "   remove: \n"                                                             \
-       "      client ipaddr: Removes the client with the given IP\n"               \
-       "      export export_id: Removes the export with the given id    \n\n"      \
-       "   update: \n"                                                             \
-       "      export conf expr:\n"                                                 \
-       "         Updates an export from the given config file that contains\n"     \
-       "         the given expression\n"                                           \
-       "         Example: \n"                                                      \
-       "         update export /etc/ganesha/gpfs.conf \"EXPORT(Export_ID=77)\"\n\n"\
-       "   display: \n"                                                            \
-       "      export export_id: Displays the export with the given ID\n\n"         \
-       "   purge: \n"                                                              \
-       "      netgroups: Purges netgroups cache\n"                                 \
-       "      idmap: Purges idmapper cache\n"                                      \
-       "      gids: Purges gids cache\n\n"                                         \
-       "   show :\n"                                                               \
-       "      clients: Displays the current clients\n"                             \
-       "      version: Displays ganesha release information\n"                     \
-       "      posix_fs: Displays the mounted POSIX filesystems\n"                  \
-       "      exports: Displays all current exports\n"                             \
-       "      idmap: Displays the idmapper cache\n\n"                              \
-       "   trim :\n"                                                               \
-       "      enable: Enable malloc trim\n"                                        \
-       "      disable: Disable malloc trim\n"                                      \
-       "      call: Call malloc trim\n"                                            \
-       "      status: Get current malloc trim status\n\n"                          \
-       "   grace: \n"                                                              \
-       "      ipaddr: Begins grace for the given IP\n\n"                           \
-       "   get: \n"                                                                \
-       "      log component: Gets the log level for the given component\n\n"       \
-       "   set: \n"                                                                \
-       "      log component level: \n"                                             \
-       "         Sets the given log level to the given component\n\n"              \
-       "   getall: \n"                                                             \
-       "       logs: Prints all log components\n\n"                                \
-       "   shutdown: Shuts down the ganesha nfs server\n\n"
+    USAGE = '''ganesha_mgr.py command [OPTIONS]
+       COMMANDS
+          add_client ipaddr
+          add client ipaddr
+              Adds the client with the given IP
+          remove_client ipaddr
+          remove client ipaddr
+              Removes the client with the given IP
+          show clients
+              Displays the current clients
+          show version
+              Displays ganesha release information
+          show posix_fs
+              Displays the mounted POSIX filesystems
+          show exports
+              Displays all current exports
+          show idmap
+              Displays the idmapper cache
+          display_export export_id
+          display export export_id
+              Displays the export with the given ID
+          add_export conf expr
+          add export conf expr
+              Adds an export from the given config file that contains
+              the given expression
+              Example:
+              add_export /etc/ganesha/gpfs.conf \"EXPORT(Export_ID=77)\"
+          remove_export id
+          remove export id
+              Removes the export with the given id
+          update_export conf expr
+              Updates an export from the given config file that contains
+              the given expression
+              Example:
+              update_export /etc/ganesha/gpfs.conf \"EXPORT(Export_ID=77)\"
+          shutdown
+              Shuts down the ganesha nfs server
+          purge netgroups
+              Purges netgroups cache
+          purge idmap
+              Purges idmapper cache
+          purge gids
+              Purges gids cache
+          grace ipaddr
+              Begins grace for the given IP
+          trim enable
+              Enable malloc trim
+          trim disable
+              Disable malloc trim
+          trim call
+              Call malloc trim
+          trim status
+              Get current malloc trim status
+          get_log component
+          get log component
+              Gets the log level for the given component
+          set_log component level
+          set log component level
+              Sets the given log level to the given component
+          getall_logs
+          getall logs
+              Prints all log components
+       '''
+
     if len(sys.argv) < 2:
        print("Too few arguments."\
              " Try \"ganesha_mgr.py help\" for more info")
        sys.exit(1)
 
     # add
+    elif sys.argv[1] == "add_client":
+        if len(sys.argv) < 3:
+           print("add_client requires an IP."\
+                 " Try \"ganesha_mgr.py help\" for more info")
+           sys.exit(1)
+        clientmgr.addclient(sys.argv[2])
+    elif sys.argv[1] == "add_export":
+        if len(sys.argv) < 4:
+           print("add_export requires a config file and an expression."\
+                 " Try \"ganesha_mgr.py help\" for more info")
+           sys.exit(1)
+        exportmgr.addexport(sys.argv[2], sys.argv[3])
     elif sys.argv[1] == "add":
+        if len(sys.argv) < 3:
+            msg = 'add requires an option, '
+            msg += 'Try "ganesha_mgr.py help" for more info'
+            sys.exit(msg)
         if sys.argv[2] == "client":
             if len(sys.argv) < 4:
                 print("add client requires an IP."\
@@ -401,7 +435,23 @@ if __name__ == '__main__':
             sys.exit(msg)
 
     # remove
+    elif sys.argv[1] == "remove_client":
+        if len(sys.argv) < 3:
+           print("remove_client requires an IP."\
+                 " Try \"ganesha_mgr.py help\" for more info")
+           sys.exit(1)
+        clientmgr.removeclient(sys.argv[2])
+    elif sys.argv[1] == "remove_export":
+        if len(sys.argv) < 3:
+           print("remove_export requires an export ID."\
+                 " Try \"ganesha_mgr.py help\" for more info")
+           sys.exit(1)
+        exportmgr.removeexport(sys.argv[2])
     elif sys.argv[1] == "remove":
+        if len(sys.argv) < 3:
+            msg = 'remove requires an option, '
+            msg += 'Try "ganesha_mgr.py help" for more info'
+            sys.exit(msg)
         if sys.argv[2] == "client":
             if len(sys.argv) < 4:
                 print("remove client requires an IP."\
@@ -419,7 +469,17 @@ if __name__ == '__main__':
             sys.exit(msg)
 
     # update
+    elif sys.argv[1] == "update_export":
+        if len(sys.argv) < 4:
+           print("update_export requires a config file and an expression."\
+                 " Try \"ganesha_mgr.py help\" for more info")
+           sys.exit(1)
+        exportmgr.updateexport(sys.argv[2], sys.argv[3])
     elif sys.argv[1] == "update":
+        if len(sys.argv) < 3:
+            msg = 'update requires an option, '
+            msg += 'Try "ganesha_mgr.py help" for more info'
+            sys.exit(msg)
         if sys.argv[2] == "export":
             if len(sys.argv) < 5:
                 print("update export requires a config file and an expression."\
@@ -431,7 +491,17 @@ if __name__ == '__main__':
             sys.exit(msg)
 
     # display
+    elif sys.argv[1] == "display_export":
+        if len(sys.argv) < 3:
+           print("display_export requires an export ID."\
+                 " Try \"ganesha_mgr.py help\" for more info")
+           sys.exit(1)
+        exportmgr.displayexport(sys.argv[2])
     elif sys.argv[1] == "display":
+        if len(sys.argv) < 3:
+            msg = 'display requires an option, '
+            msg += 'Try "ganesha_mgr.py help" for more info'
+            sys.exit(msg)
         if sys.argv[2] == "export":
             if len(sys.argv) < 4:
                 print("display export requires an export ID."\
@@ -459,6 +529,10 @@ if __name__ == '__main__':
             sys.exit(msg)
 
     # show
+    elif sys.argv[1] == "show_exports":
+        exportmgr.showexports()
+    elif sys.argv[1] == "show_client":
+        clientmgr.showclients()
     elif sys.argv[1] == "show":
         if len(sys.argv) < 3:
             msg = 'show requires an option, '
@@ -506,7 +580,17 @@ if __name__ == '__main__':
             sys.exit(msg)
 
     # set
+    elif sys.argv[1] == "set_log":
+        if len(sys.argv) < 4:
+           print("set_log requires a component and a log level."\
+                 " Try \"ganesha_mgr.py help\" for more info")
+           sys.exit(1)
+        logmgr.set(sys.argv[2], sys.argv[3])
     elif sys.argv[1] == "set":
+        if len(sys.argv) < 3:
+            msg = 'set requires an option, '
+            msg += 'Try "ganesha_mgr.py help" for more info'
+            sys.exit(msg)
         if sys.argv[2] == "log":
             if len(sys.argv) < 5:
                 print("set log requires a component and a log level."\
@@ -518,7 +602,17 @@ if __name__ == '__main__':
             sys.exit(msg)
 
     # get
+    elif sys.argv[1] == "get_log":
+        if len(sys.argv) < 3:
+           print("get_log requires a component."\
+                 " Try \"ganesha_mgr.py help\" for more info")
+           sys.exit(1)
+        logmgr.get(sys.argv[2])
     elif sys.argv[1] == "get":
+        if len(sys.argv) < 3:
+            msg = 'get requires an option, '
+            msg += 'Try "ganesha_mgr.py help" for more info'
+            sys.exit(msg)
         if sys.argv[2] == "log":
             if len(sys.argv) < 4:
                 print("get log requires a component."\
@@ -530,12 +624,14 @@ if __name__ == '__main__':
             sys.exit(msg)
 
     # getall
+    elif sys.argv[1] == "getall_logs":
+        logmgr.getall()
     elif sys.argv[1] == "getall":
+        if len(sys.argv) < 3:
+            msg = 'getall requires an option, '
+            msg += 'Try "ganesha_mgr.py help" for more info'
+            sys.exit(msg)
         if sys.argv[2] == "logs":
-            if len(sys.argv) < 3:
-                print("getall requires a component."\
-                      " Try \"ganesha_mgr.py help\" for more info")
-                sys.exit(1)
             logmgr.getall()
         else:
             msg = "Getall'%s' is not supported" % sys.argv[2]
@@ -544,9 +640,11 @@ if __name__ == '__main__':
     # others
     elif sys.argv[1] == "shutdown":
         ganesha.shutdown()
+
     elif sys.argv[1] == "help":
        print(USAGE)
 
     else:
         print("Unknown/missing command."\
               " Try \"ganesha_mgr.py help\" for more info")
+        sys.exit(1)
