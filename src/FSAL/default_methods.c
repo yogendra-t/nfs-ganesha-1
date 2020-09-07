@@ -722,7 +722,8 @@ struct export_ops def_export_ops = {
  * FSAL_MDCACHE.
  */
 
-static void handle_get_ref(struct fsal_obj_handle *obj_hdl)
+static void handle_get_ref(struct fsal_obj_handle *obj_hdl, const char *func,
+			   int line)
 {
 	/* return */
 }
@@ -732,7 +733,8 @@ static void handle_get_ref(struct fsal_obj_handle *obj_hdl)
  * FSAL_MDCACHE.
  */
 
-static void handle_put_ref(struct fsal_obj_handle *obj_hdl)
+static void handle_put_ref(struct fsal_obj_handle *obj_hdl, const char *func,
+			   int line)
 {
 	/* return */
 }
@@ -1471,8 +1473,8 @@ static bool is_referral(struct fsal_obj_handle *obj_hdl,
  */
 
 struct fsal_obj_ops def_handle_ops = {
-	.get_ref = handle_get_ref,
-	.put_ref = handle_put_ref,
+	._get_ref = handle_get_ref,
+	._put_ref = handle_put_ref,
 	.release = handle_release,
 	.merge = handle_merge,
 	.lookup = lookup,

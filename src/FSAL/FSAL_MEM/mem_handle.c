@@ -2119,7 +2119,8 @@ static void mem_handle_to_key(struct fsal_obj_handle *obj_hdl,
  *
  * @param[in] obj_hdl	Handle to ref
  */
-static void mem_get_ref(struct fsal_obj_handle *obj_hdl)
+static void mem_get_ref(struct fsal_obj_handle *obj_hdl, const char *func,
+			int line)
 {
 	struct mem_fsal_obj_handle *myself;
 
@@ -2136,7 +2137,8 @@ static void mem_get_ref(struct fsal_obj_handle *obj_hdl)
  *
  * @param[in] obj_hdl	Handle to unref
  */
-static void mem_put_ref(struct fsal_obj_handle *obj_hdl)
+static void mem_put_ref(struct fsal_obj_handle *obj_hdl, const char *func,
+			int line)
 {
 	struct mem_fsal_obj_handle *myself;
 
@@ -2211,8 +2213,8 @@ void mem_handle_ops_init(struct fsal_obj_ops *ops)
 {
 	fsal_default_obj_ops_init(ops);
 
-	ops->get_ref = mem_get_ref,
-	ops->put_ref = mem_put_ref,
+	ops->_get_ref = mem_get_ref,
+	ops->_put_ref = mem_put_ref,
 	ops->merge = mem_merge,
 	ops->release = mem_release;
 	ops->lookup = mem_lookup;

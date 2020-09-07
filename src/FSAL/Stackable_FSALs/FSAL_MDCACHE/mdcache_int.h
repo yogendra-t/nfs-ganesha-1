@@ -481,18 +481,27 @@ fsal_status_t mdcache_alloc_and_check_handle(
 
 fsal_status_t mdcache_refresh_attrs(mdcache_entry_t *entry, bool need_acl,
 				    bool need_fslocations, bool invalidate);
-
-fsal_status_t mdcache_new_entry(struct mdcache_fsal_export *exp,
+#define mdcache_new_entry(exp, sub_handle, attrs_in, attrs_out, new_directory, \
+			 entry, state, reason) \
+_mdcache_new_entry(exp, sub_handle, attrs_in, attrs_out, new_directory, entry, \
+		  state, reason, __func__, __LINE__)
+fsal_status_t _mdcache_new_entry(struct mdcache_fsal_export *exp,
 				struct fsal_obj_handle *sub_handle,
 				struct attrlist *attrs_in,
 				struct attrlist *attrs_out,
 				bool new_directory,
 				mdcache_entry_t **entry,
 				struct state_t *state,
-				mdc_reason_t reason);
-fsal_status_t mdcache_find_keyed_reason(mdcache_key_t *key,
+				mdc_reason_t reason,
+				const char *func, int line);
+fsal_status_t _mdcache_find_keyed_reason(mdcache_key_t *key,
 					mdcache_entry_t **entry,
-					mdc_reason_t reason);
+					mdc_reason_t reason,
+					const char *func,
+					int line);
+#define mdcache_find_keyed_reason(key, entry, reason) \
+	_mdcache_find_keyed_reason(key, entry, reason, __func__, __LINE__)
+
 #define mdcache_find_keyed(key, entry) mdcache_find_keyed_reason((key), \
 					(entry), MDC_REASON_DEFAULT)
 fsal_status_t mdcache_locate_host(struct gsh_buffdesc *fh_desc,

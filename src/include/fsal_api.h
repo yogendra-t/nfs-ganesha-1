@@ -1320,7 +1320,9 @@ struct fsal_obj_ops {
  *
  * @param[in] obj_hdl Handle to release
  */
-	 void (*get_ref)(struct fsal_obj_handle *obj_hdl);
+	 void (*_get_ref)(struct fsal_obj_handle *obj_hdl, const char *func,
+			  int line);
+#define get_ref(o) _get_ref(o, __func__, __LINE__)
 
 /**
  * @brief Put a reference to a handle
@@ -1330,7 +1332,9 @@ struct fsal_obj_ops {
  *
  * @param[in] obj_hdl Handle to release
  */
-	 void (*put_ref)(struct fsal_obj_handle *obj_hdl);
+	 void (*_put_ref)(struct fsal_obj_handle *obj_hdl, const char *func,
+			 int line);
+#define put_ref(o) _put_ref(o, __func__, __LINE__)
 
 /**
  * @brief Clean up a filehandle
