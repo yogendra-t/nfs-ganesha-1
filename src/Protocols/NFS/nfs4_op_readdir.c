@@ -549,7 +549,7 @@ int nfs4_op_readdir(struct nfs_argop4 *op, compound_data_t *data,
 	 *              attr_vals length
 	 *              attr_vals pointer
 	 */
-	estimated_num_entries = 50;
+	estimated_num_entries = 2000;
 	tracker.total_entries = estimated_num_entries;
 
 	LogDebug(COMPONENT_NFS_READDIR,
