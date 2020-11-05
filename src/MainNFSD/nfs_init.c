@@ -109,11 +109,6 @@ tirpc_pkg_params ntirpc_pp = {
 	0,
 	SetNameFunction,
 	(mem_format_t)rpc_warnx,
-	gsh_free_size,
-	gsh_malloc__,
-	gsh_malloc_aligned__,
-	gsh_calloc__,
-	gsh_realloc__,
 };
 
 #ifdef _USE_9P
