@@ -176,7 +176,7 @@ int nfs3_readdir(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	count = arg->arg_readdir3.count;
 	cookie = arg->arg_readdir3.cookie;
 	estimated_num_entries =
-	    MIN(count / (sizeof(entry3) - sizeof(char *)), 2000);
+	    MIN(count / (sizeof(entry3) - sizeof(char *)), 120);
 	LogDebug(COMPONENT_NFS_READDIR,
 		 "---> NFS3_READDIR: count=%lu  cookie=%" PRIu64
 		 " estimated_num_entries=%lu",
