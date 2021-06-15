@@ -658,7 +658,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		/* Check if the tag is a valid utf8 string */
 		status =
 		    nfs4_utf8string2dynamic(&(res->res_compound4.tag),
-					    UTF8_SCAN_ALL, &tagname);
+					    UTF8_SCAN_NAME, &tagname);
 		if (status != 0) {
 			char str[LOG_BUFF_LEN];
 			struct display_buffer dspbuf = {sizeof(str), str, str};

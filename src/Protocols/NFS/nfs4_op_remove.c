@@ -78,7 +78,8 @@ int nfs4_op_remove(struct nfs_argop4 *op, compound_data_t *data,
 
 	/* Validate and convert the UFT8 target to a regular string */
 	res_REMOVE4->status =
-	    nfs4_utf8string2dynamic(&arg_REMOVE4->target, UTF8_SCAN_ALL, &name);
+	    nfs4_utf8string2dynamic(&arg_REMOVE4->target, UTF8_SCAN_NAME,
+						&name);
 
 	if (res_REMOVE4->status != NFS4_OK)
 		goto out;

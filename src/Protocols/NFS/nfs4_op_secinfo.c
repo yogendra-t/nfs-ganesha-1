@@ -89,7 +89,7 @@ int nfs4_op_secinfo(struct nfs_argop4 *op, compound_data_t *data,
 	 * NFS4ERR_INVAL
 	 */
 	res_SECINFO4->status = nfs4_utf8string2dynamic(&arg_SECINFO4->name,
-						       UTF8_SCAN_ALL,
+						       UTF8_SCAN_NAME,
 						       &secinfo_fh_name);
 
 	if (res_SECINFO4->status != NFS4_OK)
