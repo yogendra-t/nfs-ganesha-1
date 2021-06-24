@@ -149,6 +149,7 @@ int nfs3_write(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	bool force_sync = op_ctx->export_perms->options & EXPORT_OPTION_COMMIT;
 	struct nfs3_write_data write_data;
 	WRITE3resfail *resfail = &res->res_write3.WRITE3res_u.resfail;
+	WRITE3resok *resok = &res->res_write3.WRITE3res_u.resok;
 	struct fsal_io_arg *write_arg = alloca(sizeof(*write_arg) +
 					       sizeof(struct iovec));
 
@@ -277,6 +278,11 @@ int nfs3_write(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		res->res_write3.status = NFS3_OK;
 		nfs_SetWccData(NULL, obj, &resfail->file_wcc);
 		write_data.rc = NFS_REQ_OK;
+		if (write_arg->fsal_stable)
+			resok->committed = FILE_SYNC;
+		else
+			resok->committed = UNSTABLE;
+		memcpy(resok->verf, NFS3_write_verifier, sizeof(writeverf3));
 		goto putref;
 	}
 
